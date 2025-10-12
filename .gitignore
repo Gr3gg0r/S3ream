@@ -1,0 +1,17 @@
+.DS_Store
+dist
+out
+tmp
+temp
+*.log
+logs
+node_modules
+.pnpm-store
+.env
+.env.local
+.env.development
+.env.testing
+.env.staging
+.env.production
+coverage
+*.tsbuildinfo

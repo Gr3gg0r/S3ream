@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "declaration": true,
+    "outDir": "dist/renderer",
+    "tsBuildInfoFile": "renderer.tsbuildinfo",
+    "types": ["vite/client"]
+  },
+  "include": ["src/renderer/src", "src/shared"]
+}
