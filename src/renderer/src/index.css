@@ -2,13 +2,420 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply min-h-screen bg-base-200 text-base-content;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  margin: 0;
+@layer base {
+  body {
+    @apply min-h-screen bg-base-200 text-base-content;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  :focus-visible {
+    outline: 2px solid oklch(var(--p));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-#root {
-  @apply min-h-screen;
-}
+@layer components {
+  /*
+   * shot.so-style gradient mesh canvas. The glass panels below need a rich
+   * background to refract — without it backdrop-filter reads as plain gray.
+   * The palette is intentionally monochrome: grayscale blobs only.
+   */
+  .glass-canvas {
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+  [data-theme="s3ream"] .glass-canvas {
+    background-color: #f4f4f5;
+    background-image:
+      radial-gradient(55rem 55rem at 8% -10%, rgba(10, 10, 10, 0.08), transparent 60%),
+      radial-gradient(48rem 48rem at 102% 2%, rgba(10, 10, 10, 0.05), transparent 55%),
+      radial-gradient(52rem 52rem at 85% 112%, rgba(255, 255, 255, 0.6), transparent 60%),
+      radial-gradient(42rem 42rem at -5% 95%, rgba(10, 10, 10, 0.06), transparent 55%);
+  }
+  [data-theme="s3reamdark"] .glass-canvas {
+    background-color: #08080a;
+    background-image:
+      radial-gradient(58rem 58rem at 8% -12%, rgba(255, 255, 255, 0.07), transparent 60%),
+      radial-gradient(50rem 50rem at 102% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
+      radial-gradient(54rem 54rem at 85% 112%, rgba(255, 255, 255, 0.04), transparent 60%);
+  }
 
+  /* Apple-style frosted glass panel. */
+  .linear-card {
+    border-radius: 16px;
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+  }
+  [data-theme="s3ream"] .linear-card {
+    background-color: color-mix(in srgb, white 62%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 8px 32px rgba(31, 41, 99, 0.1),
+      0 1px 2px rgba(16, 18, 27, 0.05);
+  }
+  [data-theme="s3reamdark"] .linear-card {
+    background-color: rgba(22, 22, 26, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Recessed well for code/log insets inside glass panels. */
+  .linear-well {
+    border-radius: 10px;
+  }
+  [data-theme="s3ream"] .linear-well {
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+  [data-theme="s3reamdark"] .linear-well {
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .linear-btn {
+    @apply inline-flex items-center justify-center gap-1.5 transition-colors;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    transition-duration: 120ms;
+  }
+  .linear-btn:disabled {
+    pointer-events: none;
+    filter: none;
+    transform: none;
+    background-color: color-mix(in srgb, oklch(var(--b3)) 70%, transparent);
+    color: color-mix(in srgb, oklch(var(--bc)) 40%, transparent);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .linear-btn-primary {
+    background-color: oklch(var(--p));
+    color: oklch(var(--pc));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 1px 2px color-mix(in srgb, oklch(var(--p)) 40%, transparent);
+  }
+  .linear-btn-primary:hover {
+    filter: brightness(1.05);
+  }
+  .linear-btn-primary:active {
+    transform: scale(0.98);
+  }
+  .linear-btn-secondary {
+    color: oklch(var(--bc));
+  }
+  [data-theme="s3ream"] .linear-btn-secondary {
+    background-color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+  }
+  [data-theme="s3ream"] .linear-btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.75);
+  }
+  [data-theme="s3reamdark"] .linear-btn-secondary {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  [data-theme="s3reamdark"] .linear-btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  .linear-btn-ghost {
+    background-color: transparent;
+    color: color-mix(in srgb, oklch(var(--bc)) 70%, transparent);
+  }
+  [data-theme="s3ream"] .linear-btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+  [data-theme="s3reamdark"] .linear-btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+  .linear-btn-xs {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .linear-btn-sm {
+    height: 28px;
+  }
+
+  .linear-input,
+  .linear-select {
+    @apply w-full text-base-content;
+    height: 36px;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  [data-theme="s3ream"] .linear-input,
+  [data-theme="s3ream"] .linear-select {
+    background-color: rgba(255, 255, 255, 0.55);
+    border: 1px solid color-mix(in srgb, oklch(var(--b3)) 55%, transparent);
+  }
+  [data-theme="s3reamdark"] .linear-input,
+  [data-theme="s3reamdark"] .linear-select {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .linear-select {
+    padding-right: 28px;
+  }
+  .linear-input:focus,
+  .linear-select:focus {
+    outline: none;
+    border-color: oklch(var(--p));
+    box-shadow: 0 0 0 2px color-mix(in srgb, oklch(var(--p)) 25%, transparent);
+  }
+  .linear-input:disabled,
+  .linear-select:disabled {
+    opacity: 0.5;
+  }
+  .linear-input-error {
+    border-color: oklch(var(--er));
+  }
+  .linear-input-error:focus {
+    border-color: oklch(var(--er));
+    box-shadow: 0 0 0 2px color-mix(in srgb, oklch(var(--er)) 25%, transparent);
+  }
+
+  .linear-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: color-mix(in srgb, oklch(var(--bc)) 80%, transparent);
+  }
+  .linear-hint {
+    font-size: 12px;
+    color: color-mix(in srgb, oklch(var(--bc)) 62%, transparent);
+  }
+
+  .linear-badge {
+    @apply inline-flex items-center;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    border: none;
+  }
+  .linear-badge-info {
+    background-color: color-mix(in srgb, oklch(var(--in)) 14%, transparent);
+    color: oklch(var(--in));
+  }
+  .linear-badge-success {
+    background-color: color-mix(in srgb, oklch(var(--su)) 14%, transparent);
+    color: oklch(var(--su));
+  }
+  .linear-badge-warning {
+    background-color: color-mix(in srgb, oklch(var(--wa)) 14%, transparent);
+    color: oklch(var(--wa));
+  }
+  .linear-badge-error {
+    background-color: color-mix(in srgb, oklch(var(--er)) 14%, transparent);
+    color: oklch(var(--er));
+  }
+  .linear-badge-neutral {
+    background-color: color-mix(in srgb, oklch(var(--bc)) 10%, transparent);
+    color: color-mix(in srgb, oklch(var(--bc)) 55%, transparent);
+  }
+
+  .linear-table {
+    @apply w-full;
+    font-size: 13px;
+  }
+  .linear-table th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, oklch(var(--bc)) 62%, transparent);
+  }
+  [data-theme="s3ream"] .linear-table th {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  [data-theme="s3reamdark"] .linear-table th {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  [data-theme="s3ream"] .linear-table td {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  }
+  [data-theme="s3reamdark"] .linear-table td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .linear-table td {
+    padding: 10px 12px;
+  }
+  [data-theme="s3ream"] .linear-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+  }
+  [data-theme="s3reamdark"] .linear-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Sticky table header over a scrolling glass table. */
+  .linear-thead {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  [data-theme="s3ream"] .linear-thead {
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+  [data-theme="s3reamdark"] .linear-thead {
+    background-color: rgba(20, 22, 28, 0.75);
+  }
+
+  .linear-segmented {
+    @apply inline-flex;
+    padding: 2px;
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+  }
+  [data-theme="s3ream"] .linear-segmented {
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+  [data-theme="s3reamdark"] .linear-segmented {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .linear-segmented button {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: color-mix(in srgb, oklch(var(--bc)) 70%, transparent);
+    transition:
+      background-color 120ms,
+      color 120ms;
+  }
+  .linear-segmented button[data-active="true"] {
+    color: oklch(var(--bc));
+  }
+  [data-theme="s3ream"] .linear-segmented button[data-active="true"] {
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 1px 3px rgba(16, 18, 27, 0.12);
+  }
+  [data-theme="s3reamdark"] .linear-segmented button[data-active="true"] {
+    background-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .linear-progress {
+    height: 6px;
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  [data-theme="s3ream"] .linear-progress {
+    background-color: rgba(15, 23, 42, 0.07);
+  }
+  [data-theme="s3reamdark"] .linear-progress {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  .linear-progress > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: oklch(var(--p));
+    transition: width 200ms ease;
+  }
+
+  .linear-alert {
+    border-radius: 10px;
+    font-size: 13px;
+    padding: 10px 12px;
+    color: color-mix(in srgb, oklch(var(--bc)) 85%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid color-mix(in srgb, oklch(var(--in)) 25%, transparent);
+    background-color: color-mix(in srgb, oklch(var(--in)) 8%, transparent);
+  }
+  .linear-alert-error {
+    border-color: color-mix(in srgb, oklch(var(--er)) 25%, transparent);
+    background-color: color-mix(in srgb, oklch(var(--er)) 8%, transparent);
+  }
+  .linear-alert-warning {
+    border-color: color-mix(in srgb, oklch(var(--wa)) 25%, transparent);
+    background-color: color-mix(in srgb, oklch(var(--wa)) 8%, transparent);
+  }
+
+  .linear-mono {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  /* Dashed drop area for the Simple journey, glass-consistent with panels. */
+  .linear-dropzone {
+    @apply flex w-full flex-col items-center justify-center gap-2 text-center transition-colors;
+    border-radius: 16px;
+    border: 1.5px dashed color-mix(in srgb, oklch(var(--bc)) 25%, transparent);
+    padding: 32px 16px;
+    transition-duration: 120ms;
+  }
+  [data-theme="s3ream"] .linear-dropzone {
+    background-color: rgba(255, 255, 255, 0.35);
+  }
+  [data-theme="s3reamdark"] .linear-dropzone {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+  .linear-dropzone[data-active="true"] {
+    border-color: oklch(var(--p));
+    background-color: color-mix(in srgb, oklch(var(--p)) 8%, transparent);
+  }
+  .linear-dropzone:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .checkbox {
+    border-radius: 6px;
+    animation: none;
+  }
+  [data-theme="s3ream"] .checkbox {
+    border: 1px solid color-mix(in srgb, oklch(var(--b3)) 70%, transparent);
+    background-color: rgba(255, 255, 255, 0.6);
+  }
+  [data-theme="s3reamdark"] .checkbox {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+  .checkbox:checked {
+    background-color: oklch(var(--p));
+    border-color: oklch(var(--p));
+    background-image:
+      linear-gradient(-45deg, transparent 65%, oklch(var(--p)) 65.99%),
+      linear-gradient(45deg, transparent 75%, oklch(var(--p)) 75.99%),
+      linear-gradient(-45deg, oklch(var(--p)) 40%, transparent 40.99%),
+      linear-gradient(
+        45deg,
+        oklch(var(--p)) 30%,
+        oklch(var(--pc)) 30.99%,
+        oklch(var(--pc)) 40%,
+        transparent 40.99%
+      ),
+      linear-gradient(-45deg, oklch(var(--pc)) 50%, oklch(var(--p)) 50.99%);
+  }
+}

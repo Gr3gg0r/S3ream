@@ -6,24 +6,53 @@ import type {
   JobStatus,
   QueueUpdate,
   SingleProcessProgress,
-  SingleProcessResult
+  SingleProcessResult,
 } from "@shared/ipc";
+import { useTheme } from "@renderer/hooks/useTheme";
+import { useDialogA11y } from "@renderer/hooks/useDialogA11y";
+import { ThemeToggle } from "@renderer/components/ThemeToggle";
+import { JourneyWizard } from "@renderer/components/JourneyWizard";
+import { Clock, SlidersHorizontal, Sparkles } from "@renderer/components/icons";
+import {
+  defaultRenditions,
+  formatBytes,
+  resolutionOptions,
+  resolutionOrder,
+} from "@renderer/constants";
 
-const resolutionOptions = [
-  { id: "240p", label: "240p" },
-  { id: "360p", label: "360p" },
-  { id: "480p", label: "480p" },
-  { id: "720p", label: "720p" },
-  { id: "1080p", label: "1080p" },
-  { id: "2k", label: "1440p" },
-  { id: "4k", label: "2160p" }
-] as const;
-
-const resolutionOrder = resolutionOptions.map(option => option.id);
-const defaultRenditions = ["360p", "480p", "720p"];
 const SINGLE_PENDING_JOB_ID = "__pending_single_job__";
+const formatDuration = (milliseconds: number) => {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) {
+    return "00:00:00";
+  }
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600)
+    .toString()
+    .padStart(2, "0");
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = Math.floor(totalSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+};
 
-type Mode = "single" | "batch" | "history";
+type Mode = "single" | "batch";
+type View = "simple" | "advanced" | "history";
+
+const VIEW_STORAGE_KEY = "s3ream-view";
+
+const readStoredView = (): View => {
+  if (typeof window === "undefined") {
+    return "simple";
+  }
+  const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+  if (stored === "simple" || stored === "advanced" || stored === "history") {
+    return stored;
+  }
+  return "simple";
+};
 
 interface SelectedFile {
   filePath: string;
@@ -32,42 +61,22 @@ interface SelectedFile {
   selected: boolean;
 }
 
-const applyThemePreference = (dark: boolean) => {
-  document.documentElement.setAttribute("data-theme", dark ? "mkpbluedark" : "mkpblue");
-};
-
-const useSystemThemeSync = () => {
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    applyThemePreference(mediaQuery.matches);
-    const listener = (event: MediaQueryListEvent) => applyThemePreference(event.matches);
-    mediaQuery.addEventListener("change", listener);
-    return () => mediaQuery.removeEventListener("change", listener);
-  }, []);
-};
-
-const formatBytes = (size: number) => {
-  if (size === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const exponent = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
-  const value = size / Math.pow(1024, exponent);
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[exponent]}`;
-};
-
 const statusClassMap: Record<JobStatus, string> = {
-  pending: "badge-outline",
-  queued: "badge-outline",
-  processing: "badge-info",
-  uploading: "badge-info",
-  paused: "badge-outline",
-  completed: "badge-success",
-  failed: "badge-error",
-  skipped: "badge-warning",
-  canceled: "badge-outline"
+  pending: "linear-badge-neutral",
+  queued: "linear-badge-neutral",
+  processing: "linear-badge-info",
+  uploading: "linear-badge-info",
+  paused: "linear-badge-neutral",
+  completed: "linear-badge-success",
+  failed: "linear-badge-error",
+  skipped: "linear-badge-warning",
+  canceled: "linear-badge-neutral",
 };
 
 const statusLabel = (status: JobStatus) => {
   switch (status) {
+    case "pending":
+      return "Pending";
     case "queued":
       return "Queued";
     case "processing":
@@ -108,6 +117,7 @@ const useCopyFeedback = () => {
 
 function App() {
   const [mode, setMode] = useState<Mode>("single");
+  const [view, setViewState] = useState<View>(readStoredView);
   const [basePrefix, setBasePrefix] = useState("");
   const [basePrefixError, setBasePrefixError] = useState<string | null>(null);
   const [selectedRenditions, setSelectedRenditions] = useState<string[]>(defaultRenditions);
@@ -124,7 +134,7 @@ function App() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [copyStatus, setCopyStatus] = useCopyFeedback();
-  const [infoMessages, setInfoMessages] = useState<string[]>([]);
+  const [infoMessages, setInfoMessages] = useState<Array<{ id: number; message: string }>>([]);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyStatusFilter, setHistoryStatusFilter] = useState<JobStatus | "all">("all");
@@ -134,61 +144,176 @@ function App() {
   const [concurrency, setConcurrency] = useState(2);
   const [copiedJobId, setCopiedJobId] = useState<string | null>(null);
   const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [singleElapsedMs, setSingleElapsedMs] = useState(0);
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(() => new Set());
   const [isBulkUrlModalOpen, setIsBulkUrlModalOpen] = useState(false);
   const [bulkUrlText, setBulkUrlText] = useState("");
   const headerHistoryCheckboxRef = useRef<HTMLInputElement>(null);
   const singleActiveJobIdRef = useRef<string | null>(null);
+  const elapsedTimerRef = useRef<number | null>(null);
+  const elapsedStartRef = useRef<number | null>(null);
+  const elapsedOffsetRef = useRef(0);
+  const singleElapsedTimerRef = useRef<number | null>(null);
+  const singleElapsedStartRef = useRef<number | null>(null);
+  const bulkUrlDialogRef = useRef<HTMLDivElement>(null);
+  const logDialogRef = useRef<HTMLDivElement>(null);
+  const infoMessageIdRef = useRef(0);
+  const historyReloadCountRef = useRef(0);
+  const selectedJobIdRef = useRef<string | null>(null);
 
-  useSystemThemeSync();
+  const { preference, setPreference } = useTheme();
 
-const pushMessage = useCallback((message: string) => {
-  setInfoMessages(previous => {
-    const trimmed = previous.slice(-3);
-    return [...trimmed, message];
-  });
-}, []);
+  const setView = useCallback((next: View) => {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+    setViewState(next);
+  }, []);
 
-useEffect(() => {
-  if (!window.api) return;
-  window.api.setConcurrency(concurrency);
-}, [concurrency]);
+  const closeBulkUrlModal = useCallback(() => setIsBulkUrlModalOpen(false), []);
+  const closeLogModal = useCallback(() => setIsLogOpen(false), []);
+  useDialogA11y(isBulkUrlModalOpen, closeBulkUrlModal, bulkUrlDialogRef);
+  useDialogA11y(isLogOpen, closeLogModal, logDialogRef);
+
+  const pushMessage = useCallback((message: string) => {
+    const id = ++infoMessageIdRef.current;
+    setInfoMessages((previous) => [...previous.slice(-3), { id, message }]);
+  }, []);
+
+  useEffect(() => {
+    if (!window.api) return;
+    void window.api.setConcurrency(concurrency);
+  }, [concurrency]);
+
+  useEffect(() => {
+    return () => {
+      if (elapsedTimerRef.current !== null) {
+        window.clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      if (singleElapsedTimerRef.current !== null) {
+        window.clearInterval(singleElapsedTimerRef.current);
+        singleElapsedTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const status = queueUpdate?.queueStatus;
+    if (status === "running") {
+      if (elapsedStartRef.current === null) {
+        elapsedStartRef.current = Date.now();
+      }
+      const updateElapsed = () => {
+        const start = elapsedStartRef.current;
+        if (start === null) {
+          setElapsedMs(elapsedOffsetRef.current);
+        } else {
+          setElapsedMs(elapsedOffsetRef.current + (Date.now() - start));
+        }
+      };
+      updateElapsed();
+      if (elapsedTimerRef.current === null) {
+        elapsedTimerRef.current = window.setInterval(updateElapsed, 1000);
+      }
+    } else if (status === "paused") {
+      if (elapsedTimerRef.current !== null) {
+        window.clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      if (elapsedStartRef.current !== null) {
+        elapsedOffsetRef.current += Date.now() - elapsedStartRef.current;
+        elapsedStartRef.current = null;
+      }
+      setElapsedMs(elapsedOffsetRef.current);
+    } else if (status === "idle") {
+      if (elapsedTimerRef.current !== null) {
+        window.clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      if (elapsedStartRef.current !== null) {
+        elapsedOffsetRef.current += Date.now() - elapsedStartRef.current;
+        elapsedStartRef.current = null;
+      }
+      const finalElapsed = elapsedOffsetRef.current;
+      setElapsedMs(finalElapsed);
+      elapsedOffsetRef.current = 0;
+    } else {
+      if (elapsedTimerRef.current !== null) {
+        window.clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      elapsedStartRef.current = null;
+      elapsedOffsetRef.current = 0;
+      setElapsedMs(0);
+    }
+  }, [queueUpdate?.queueStatus]);
+
+  useEffect(() => {
+    if (singleProcessing) {
+      if (singleElapsedTimerRef.current !== null) {
+        window.clearInterval(singleElapsedTimerRef.current);
+      }
+      singleElapsedStartRef.current = Date.now();
+      setSingleElapsedMs(0);
+      singleElapsedTimerRef.current = window.setInterval(() => {
+        if (singleElapsedStartRef.current !== null) {
+          setSingleElapsedMs(Date.now() - singleElapsedStartRef.current);
+        }
+      }, 1000);
+    } else {
+      if (singleElapsedTimerRef.current !== null) {
+        window.clearInterval(singleElapsedTimerRef.current);
+        singleElapsedTimerRef.current = null;
+      }
+      if (singleElapsedStartRef.current !== null) {
+        setSingleElapsedMs(Date.now() - singleElapsedStartRef.current);
+        singleElapsedStartRef.current = null;
+      }
+    }
+  }, [singleProcessing]);
 
   useEffect(() => {
     if (!window.api) return undefined;
-    const unbind = window.api.onSingleProgress(progress => {
-      setSingleProgressEvents(previous => {
-        const activeId = singleActiveJobIdRef.current;
-        if (activeId && activeId !== SINGLE_PENDING_JOB_ID && activeId !== progress.jobId) {
-          return previous;
-        }
-
-        let baseline = previous;
-        if (!activeId || activeId === SINGLE_PENDING_JOB_ID) {
-          singleActiveJobIdRef.current = progress.jobId;
-          baseline = [];
-        }
-
-        const updated = [...baseline, progress];
+    const unbind = window.api.onSingleProgress((progress) => {
+      const activeId = singleActiveJobIdRef.current;
+      // Ignore events from jobs started elsewhere (e.g. the Simple wizard).
+      if (
+        activeId === null ||
+        (activeId !== SINGLE_PENDING_JOB_ID && activeId !== progress.jobId)
+      ) {
+        return;
+      }
+      if (activeId === SINGLE_PENDING_JOB_ID) {
+        singleActiveJobIdRef.current = progress.jobId;
+        setSingleProgressEvents([progress]);
+        return;
+      }
+      setSingleProgressEvents((previous) => {
+        const updated = [...previous, progress];
         return updated.length > 50 ? updated.slice(updated.length - 50) : updated;
       });
     });
     return () => unbind?.();
-  }, [SINGLE_PENDING_JOB_ID]);
+  }, []);
+
+  useEffect(() => {
+    selectedJobIdRef.current = selectedJobId;
+  }, [selectedJobId]);
 
   useEffect(() => {
     if (!window.api) {
-      setInfoMessages(["Native bridge unavailable. Application features are limited."]);
+      pushMessage("Native bridge unavailable. Application features are limited.");
       return;
     }
-    const unbindQueue = window.api.onQueueUpdate(update => {
+    const unbindQueue = window.api.onQueueUpdate((update) => {
       setQueueUpdate(update);
-      if (selectedJobId && !update.jobs.some(job => job.id === selectedJobId)) {
+      const selectedId = selectedJobIdRef.current;
+      if (selectedId && !update.jobs.some((job) => job.id === selectedId)) {
         setSelectedJobId(null);
       }
     });
-    const unbindLog = window.api.onJobLog(entry => {
-      setJobLogs(previous => {
+    const unbindLog = window.api.onJobLog((entry) => {
+      setJobLogs((previous) => {
         const merged = [...previous, entry];
         return merged.length > 800 ? merged.slice(merged.length - 800) : merged;
       });
@@ -197,7 +322,7 @@ useEffect(() => {
       unbindQueue?.();
       unbindLog?.();
     };
-  }, [selectedJobId]);
+  }, [pushMessage]);
 
   useEffect(() => {
     if (!queueUpdate) return;
@@ -219,7 +344,7 @@ useEffect(() => {
   }, [copiedHistoryId]);
 
   useEffect(() => {
-    setSelectedHistoryIds(previous => {
+    setSelectedHistoryIds((previous) => {
       const next = new Set<string>();
       for (const record of historyRecords) {
         if (previous.has(record.id)) {
@@ -228,7 +353,7 @@ useEffect(() => {
       }
       if (next.size === previous.size) {
         let changed = false;
-        previous.forEach(id => {
+        previous.forEach((id) => {
           if (!next.has(id)) {
             changed = true;
           }
@@ -246,11 +371,11 @@ useEffect(() => {
     const element = headerHistoryCheckboxRef.current;
     element.indeterminate =
       selectedHistoryIds.size > 0 &&
-      historyRecords.some(record => !selectedHistoryIds.has(record.id));
+      historyRecords.some((record) => !selectedHistoryIds.has(record.id));
   }, [historyRecords, selectedHistoryIds]);
 
   const toggleRendition = (id: string) => {
-    setSelectedRenditions(previous => {
+    setSelectedRenditions((previous) => {
       const next = new Set(previous);
       if (next.has(id)) {
         next.delete(id);
@@ -258,61 +383,77 @@ useEffect(() => {
         next.add(id);
       }
       const sorted = Array.from(next).sort(
-        (a, b) => resolutionOrder.indexOf(a) - resolutionOrder.indexOf(b)
+        (a, b) => resolutionOrder.indexOf(a) - resolutionOrder.indexOf(b),
       );
       return sorted.length > 0 ? sorted : [];
     });
   };
 
-const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selectedRenditions]);
+  const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selectedRenditions]);
+  const formattedElapsed = useMemo(() => formatDuration(elapsedMs), [elapsedMs]);
+  const singleFormattedElapsed = useMemo(() => formatDuration(singleElapsedMs), [singleElapsedMs]);
 
-  const loadHistory = useCallback(async () => {
-    if (!window.api) return;
-    setHistoryLoading(true);
-    try {
-      const response = await window.api.listHistory({
-        status: historyStatusFilter,
-        search: historySearch || undefined,
-        limit: 100,
-        offset: 0
-      });
-      setHistoryRecords(response.records);
-      setHistoryTotal(response.total);
-    } catch (error) {
-      pushMessage(`Failed to load history: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [historyStatusFilter, historySearch, pushMessage]);
+  const loadHistory = useCallback(
+    async (offset = 0) => {
+      if (!window.api) return;
+      setHistoryLoading(true);
+      try {
+        const response = await window.api.listHistory({
+          status: historyStatusFilter,
+          search: historySearch || undefined,
+          limit: 100,
+          offset,
+        });
+        setHistoryRecords((previous) =>
+          offset === 0 ? response.records : [...previous, ...response.records],
+        );
+        setHistoryTotal(response.total);
+      } catch (error) {
+        pushMessage(
+          `Failed to load history: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [historyStatusFilter, historySearch, pushMessage],
+  );
 
   useEffect(() => {
-    if (!window.api) return;
-    loadHistory();
-  }, [loadHistory]);
-
-  useEffect(() => {
-    if (mode === "history") {
-      loadHistory();
+    if (view === "history") {
+      void loadHistory();
     }
-  }, [mode, loadHistory]);
+  }, [view, loadHistory]);
 
   useEffect(() => {
     if (!queueUpdate) return;
-    if (queueUpdate.jobs.some(job => job.status === "completed" || job.status === "failed")) {
-      loadHistory();
+    const doneCount =
+      queueUpdate.totals.completed + queueUpdate.totals.failed + queueUpdate.totals.skipped;
+    if (doneCount === historyReloadCountRef.current) {
+      return;
     }
+    historyReloadCountRef.current = doneCount;
+    void loadHistory();
   }, [queueUpdate, loadHistory]);
 
   const handleChooseSingleFile = async () => {
     if (!window.api || singleProcessing) return;
-    const selection = await window.api.selectVideo();
+    let selection: string | null;
+    try {
+      selection = await window.api.selectVideo();
+    } catch (error) {
+      pushMessage(
+        `Failed to open file dialog: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
     if (!selection) return;
     const fileName = selection.split(pathSeparator()).pop() ?? selection;
     setSingleFile({
       filePath: selection,
       fileName,
       size: 0,
-      selected: true
+      selected: true,
     });
     setSingleResult(null);
     setSingleError(null);
@@ -322,32 +463,34 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
 
   const handleChooseFolder = async () => {
     if (!window.api) return;
-    const folder = await window.api.selectFolder();
-    if (!folder) return;
     try {
+      const folder = await window.api.selectFolder();
+      if (!folder) return;
       const scan: FolderScanResult = await window.api.scanFolder(folder);
-      const mapped: SelectedFile[] = scan.files.map(file => ({
+      const mapped: SelectedFile[] = scan.files.map((file) => ({
         filePath: file.filePath,
         fileName: file.fileName,
         size: file.size,
-        selected: true
+        selected: true,
       }));
       setFolderFiles(mapped);
       setFolderPath(folder);
       setSkippedFiles(scan.skipped);
-      setInfoMessages(
-        scan.skipped.length > 0
-          ? [`Skipped ${scan.skipped.length} unsupported files.`]
-          : []
-      );
+      if (scan.skipped.length > 0) {
+        pushMessage(`Skipped ${scan.skipped.length} unsupported files.`);
+      }
     } catch (error) {
-      setInfoMessages([`Failed to scan folder: ${error instanceof Error ? error.message : String(error)}`]);
+      pushMessage(
+        `Failed to scan folder: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
   const toggleFolderFile = (index: number) => {
-    setFolderFiles(previous =>
-      previous.map((entry, idx) => (idx === index ? { ...entry, selected: !entry.selected } : entry))
+    setFolderFiles((previous) =>
+      previous.map((entry, idx) =>
+        idx === index ? { ...entry, selected: !entry.selected } : entry,
+      ),
     );
   };
 
@@ -365,18 +508,17 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
       return;
     }
     setBasePrefixError(null);
-
-    setBasePrefixError(null);
     setSingleProcessing(true);
     setSingleError(null);
     setSingleResult(null);
     setSingleProgressEvents([]);
+    setSingleElapsedMs(0);
     singleActiveJobIdRef.current = SINGLE_PENDING_JOB_ID;
     try {
       const response = await window.api.processSingle({
         basePrefix: trimmedPrefix,
         filePath: singleFile.filePath,
-        renditions: selectedRenditions
+        renditions: selectedRenditions,
       });
       setSingleResult(response);
       if (response.success) {
@@ -386,7 +528,7 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
         setSingleError(message);
         pushMessage(message);
       }
-      loadHistory();
+      void loadHistory();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSingleError(message);
@@ -400,7 +542,7 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
   const handleQueueBatch = async (event: FormEvent) => {
     event.preventDefault();
     if (!window.api) return;
-    const selected = folderFiles.filter(file => file.selected);
+    const selected = folderFiles.filter((file) => file.selected);
     if (selected.length === 0) {
       pushMessage("Select at least one file to process.");
       return;
@@ -414,33 +556,39 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
     try {
       const { jobIds, skipped } = await window.api.queueJobs({
         basePrefix: trimmedPrefix,
-        files: selected.map(file => ({ filePath: file.filePath })),
+        files: selected.map((file) => ({ filePath: file.filePath })),
         renditions: selectedRenditions,
         mode: "batch",
-        concurrency
+        concurrency,
       });
-      if (skipped.length > 0) {
-        skipped.forEach(entry => pushMessage(`Skipped ${path.basename(entry.filePath)} (${entry.reason}).`));
-      }
       pushMessage(`Queued ${selected.length - skipped.length} files for processing.`);
       if (jobIds.length > 0) {
         setSelectedJobId(jobIds[0]);
       }
     } catch (error) {
-      pushMessage(`Failed to queue batch: ${error instanceof Error ? error.message : String(error)}`);
+      pushMessage(
+        `Failed to queue batch: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
-  const handleQueueControl = async (action: "pause" | "resume" | "cancel-current" | "cancel-remaining" | "clear-completed") => {
+  const handleQueueControl = async (
+    action: "pause" | "resume" | "cancel-current" | "cancel-remaining" | "clear-completed",
+  ) => {
     if (!window.api) return;
     try {
       await window.api.controlQueue(action);
     } catch (error) {
-      pushMessage(`Queue control failed: ${error instanceof Error ? error.message : String(error)}`);
+      pushMessage(
+        `Queue control failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
-  const handleCopyUrl = async (url: string | undefined, options?: { jobId?: string; historyId?: string }) => {
+  const handleCopyUrl = async (
+    url: string | undefined,
+    options?: { jobId?: string; historyId?: string },
+  ) => {
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
@@ -468,11 +616,11 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
   };
 
   const handleHistoryRefresh = () => {
-    loadHistory();
+    void loadHistory();
   };
 
   const toggleHistorySelection = (historyId: string) => {
-    setSelectedHistoryIds(previous => {
+    setSelectedHistoryIds((previous) => {
       const next = new Set(previous);
       if (next.has(historyId)) {
         next.delete(historyId);
@@ -484,24 +632,24 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
   };
 
   const toggleHistorySelectAll = () => {
-    setSelectedHistoryIds(previous => {
+    setSelectedHistoryIds((previous) => {
       if (historyRecords.length === 0) {
         return previous.size === 0 ? previous : new Set<string>();
       }
-      const shouldSelectAll = historyRecords.some(record => !previous.has(record.id));
+      const shouldSelectAll = historyRecords.some((record) => !previous.has(record.id));
       if (!shouldSelectAll) {
         return previous.size === 0 ? previous : new Set<string>();
       }
       const next = new Set<string>();
-      historyRecords.forEach(record => next.add(record.id));
+      historyRecords.forEach((record) => next.add(record.id));
       return next;
     });
   };
 
   const handleGenerateBulkUrls = () => {
     const urls = historyRecords
-      .filter(record => selectedHistoryIds.has(record.id))
-      .map(record => record.manifestUrl)
+      .filter((record) => selectedHistoryIds.has(record.id))
+      .map((record) => record.manifestUrl)
       .filter((url): url is string => Boolean(url && url.trim().length > 0));
     if (urls.length === 0) {
       pushMessage("Select history entries with URLs before generating.");
@@ -528,7 +676,7 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
     if (!window.api) return;
     try {
       await window.api.deleteHistory(record.id);
-      setSelectedHistoryIds(previous => {
+      setSelectedHistoryIds((previous) => {
         if (!previous.has(record.id)) {
           return previous;
         }
@@ -537,9 +685,11 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
         return next;
       });
       pushMessage(`Removed ${record.fileName} from history`);
-      loadHistory();
+      void loadHistory();
     } catch (error) {
-      pushMessage(`Failed to delete history: ${error instanceof Error ? error.message : String(error)}`);
+      pushMessage(
+        `Failed to delete history: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
@@ -548,113 +698,152 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
   const jobs = queueUpdate?.jobs ?? [];
 
   const filteredLogs = useMemo(() => {
-    const list = selectedJobId ? jobLogs.filter(entry => entry.jobId === selectedJobId) : jobLogs;
+    const list = selectedJobId ? jobLogs.filter((entry) => entry.jobId === selectedJobId) : jobLogs;
     return [...list].slice(-200).reverse();
   }, [jobLogs, selectedJobId]);
 
-  const activeJob = selectedJobId ? jobs.find(job => job.id === selectedJobId) : undefined;
+  const activeJob = selectedJobId ? jobs.find((job) => job.id === selectedJobId) : undefined;
   const selectedHistoryCount = selectedHistoryIds.size;
   const allHistorySelected =
-    historyRecords.length > 0 && historyRecords.every(record => selectedHistoryIds.has(record.id));
+    historyRecords.length > 0 &&
+    historyRecords.every((record) => selectedHistoryIds.has(record.id));
   const bulkUrlCount = useMemo(
     () => (bulkUrlText.trim().length === 0 ? 0 : bulkUrlText.split("\n").filter(Boolean).length),
-    [bulkUrlText]
+    [bulkUrlText],
   );
   const currentSingleProgress = singleProgressEvents.length
     ? singleProgressEvents[singleProgressEvents.length - 1]
     : null;
-  const singleProgressTail = useMemo(() => singleProgressEvents.slice(-10).reverse(), [singleProgressEvents]);
-  const singleProgressPercent = currentSingleProgress?.percent ?? (singleProcessing ? 0 : singleProgressEvents.length > 0 ? 100 : 0);
+  const singleProgressTail = useMemo(
+    () => singleProgressEvents.slice(-10).reverse(),
+    [singleProgressEvents],
+  );
+  const singleProgressPercent =
+    currentSingleProgress?.percent ??
+    (singleProcessing ? 0 : singleProgressEvents.length > 0 ? 100 : 0);
   const normalizedSingleProgress = Number.isFinite(singleProgressPercent)
     ? Math.min(Math.max(singleProgressPercent, 0), 100)
     : 0;
 
   return (
     <>
-      <div className="min-h-screen bg-base-200 px-6 py-8">
+      <div className="glass-canvas min-h-screen px-6 py-8">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-primary">MKP Upload Services</h1>
-              <p className="text-sm opacity-80">
-                Convert videos to multi-rendition HLS, upload to S3-compatible storage, and track batch progress with live logs.
+              <h1 className="text-2xl font-semibold tracking-tight">S3ream</h1>
+              <p className="text-[13px] text-base-content/55">
+                Convert videos to multi-rendition HLS, upload to S3-compatible storage, and track
+                batch progress with live logs.
               </p>
             </div>
-            <div className="btn-group">
-              <button
-                type="button"
-                className={`btn btn-sm ${mode === "single" ? "btn-primary" : "btn-outline"}`}
-                onClick={() => setMode("single")}
-              >
-                Single file
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${mode === "batch" ? "btn-primary" : "btn-outline"}`}
-                onClick={() => setMode("batch")}
-              >
-                Folder batch
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${mode === "history" ? "btn-primary" : "btn-outline"}`}
-                onClick={() => setMode("history")}
-              >
-                History
-              </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <ThemeToggle preference={preference} setPreference={setPreference} />
+              <div className="linear-segmented" role="radiogroup" aria-label="View">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={view === "simple"}
+                  data-active={view === "simple"}
+                  className="inline-flex items-center gap-1.5"
+                  onClick={() => setView("simple")}
+                >
+                  <Sparkles size={14} />
+                  Simple
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={view === "advanced"}
+                  data-active={view === "advanced"}
+                  className="inline-flex items-center gap-1.5"
+                  onClick={() => setView("advanced")}
+                >
+                  <SlidersHorizontal size={14} />
+                  Advanced
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={view === "history"}
+                  data-active={view === "history"}
+                  className="inline-flex items-center gap-1.5"
+                  onClick={() => setView("history")}
+                >
+                  <Clock size={14} />
+                  History
+                </button>
+              </div>
             </div>
           </header>
 
           {infoMessages.length > 0 && (
-            <div className="alert alert-info flex-col items-start gap-1">
-              {infoMessages.map(message => (
-                <span key={message}>{message}</span>
+            <div className="linear-alert flex flex-col items-start gap-1">
+              {infoMessages.map((item) => (
+                <span key={item.id}>{item.message}</span>
               ))}
             </div>
           )}
 
-          {mode === "single" && (
-            <section className="card bg-base-100 shadow-lg">
+          {view === "simple" && <JourneyWizard />}
+
+          {view === "advanced" && (
+            <div className="linear-segmented self-start" role="group" aria-label="Advanced mode">
+              <button
+                type="button"
+                data-active={mode === "single"}
+                onClick={() => setMode("single")}
+              >
+                Single file
+              </button>
+              <button type="button" data-active={mode === "batch"} onClick={() => setMode("batch")}>
+                Folder batch
+              </button>
+            </div>
+          )}
+
+          {view === "advanced" && mode === "single" && (
+            <section className="linear-card">
               <div className="card-body gap-6">
                 <form className="flex flex-col gap-6" onSubmit={handleProcessSingle}>
                   <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-                    <div className="form-control md:col-span-2">
-                      <label className="label">
-                        <span className="label-text font-medium">Video source</span>
+                    <div className="flex flex-col gap-1.5 md:col-span-2">
+                      <label htmlFor="single-video-source" className="linear-label">
+                        Video source
                       </label>
-                      <div className="join">
+                      <div className="flex gap-2">
                         <input
+                          id="single-video-source"
                           type="text"
                           value={singleFile?.filePath ?? ""}
                           placeholder="Select a file..."
                           readOnly
-                          className="input input-bordered join-item w-full"
+                          className="linear-input"
                           disabled={singleProcessing}
                         />
                         <button
                           type="button"
-                          className="btn btn-primary join-item"
+                          className="linear-btn linear-btn-primary shrink-0"
                           onClick={handleChooseSingleFile}
                           disabled={singleProcessing}
                         >
                           Choose file
                         </button>
                       </div>
-                      <label className="label">
-                        <span className="label-text-alt opacity-60">
-                          Supports MP4, MOV, MKV, AVI, M4V, and WEBM containers.
-                        </span>
-                      </label>
+                      <span className="linear-hint">
+                        Supports MP4, MOV, MKV, AVI, M4V, and WEBM containers.
+                      </span>
                     </div>
 
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text font-medium">Object path prefix</span>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="single-base-prefix" className="linear-label">
+                        Object path prefix
                       </label>
                       <input
+                        id="single-base-prefix"
                         type="text"
                         value={basePrefix}
-                        onChange={event => {
+                        onChange={(event) => {
                           const value = event.target.value;
                           setBasePrefix(value);
                           if (value.trim().length > 0) {
@@ -662,32 +851,37 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                           }
                         }}
                         placeholder="uploads/my-project"
-                        className={`input input-bordered ${basePrefixError ? "input-error" : ""}`}
+                        className={`linear-input ${basePrefixError ? "linear-input-error" : ""}`}
                         disabled={singleProcessing}
                       />
-                      <label className="label">
-                        <span className="label-text-alt opacity-60">
-                          Each file is uploaded under <code>{basePrefix.trim() || "(prefix)"}/{`<filename>/`}</code>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="linear-hint">
+                          Each file is uploaded under{" "}
+                          <code>
+                            {basePrefix.trim() || "(prefix)"}/{`<filename>/`}
+                          </code>
                         </span>
                         {basePrefixError ? (
-                          <span className="label-text-alt text-error">{basePrefixError}</span>
+                          <span className="linear-hint shrink-0 text-error">{basePrefixError}</span>
                         ) : null}
-                      </label>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium">Output renditions</span>
-                    </label>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="linear-label">Output renditions</span>
                     <div className="flex flex-wrap gap-2">
-                      {resolutionOptions.map(option => {
+                      {resolutionOptions.map((option) => {
                         const isSelected = selectedRenditionSet.has(option.id);
                         return (
                           <button
                             key={option.id}
                             type="button"
-                            className={`btn btn-sm ${isSelected ? "btn-primary" : "btn-outline"} uppercase`}
+                            className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium transition ${
+                              isSelected
+                                ? "border-primary bg-primary text-primary-content"
+                                : "border-base-300 text-base-content/65 hover:bg-base-200"
+                            }`}
                             onClick={() => toggleRendition(option.id)}
                             disabled={singleProcessing}
                           >
@@ -696,16 +890,15 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                         );
                       })}
                     </div>
-                    <label className="label">
-                      <span className="label-text-alt opacity-60">
-                        Defaults to 360p, 480p, and 720p. Higher renditions are skipped if the source is too small.
-                      </span>
-                    </label>
+                    <span className="linear-hint">
+                      Defaults to 360p, 480p, and 720p. Higher renditions are skipped if the source
+                      is too small.
+                    </span>
                   </div>
 
                   <button
                     type="submit"
-                    className={`btn btn-primary ${singleProcessing ? "loading" : ""}`}
+                    className="linear-btn linear-btn-primary h-9 w-full"
                     disabled={
                       !singleFile ||
                       selectedRenditions.length === 0 ||
@@ -720,69 +913,78 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
             </section>
           )}
 
-          {mode === "single" && (
-            <section className="card bg-base-100 shadow-lg">
+          {view === "advanced" && mode === "single" && (
+            <section className="linear-card">
               <div className="card-body gap-4">
-                <h2 className="card-title text-lg">Result</h2>
+                <h2 className="text-base font-semibold tracking-tight">Result</h2>
                 {(singleProcessing || singleProgressEvents.length > 0) && (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold uppercase tracking-wide text-primary">
+                    <div className="flex items-center justify-between" aria-live="polite">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-primary">
                         {currentSingleProgress?.stage ?? "Preparing"}
                       </span>
-                      <span className="badge badge-outline badge-sm">
+                      <span className="linear-badge linear-badge-neutral">
                         {percentDisplay(normalizedSingleProgress)}
                       </span>
                     </div>
-                    <progress
-                      className="progress progress-primary w-full"
-                      value={normalizedSingleProgress}
-                      max={100}
-                    />
-                    <div className="max-h-36 overflow-y-auto rounded border border-base-200 bg-base-200/40 p-3">
+                    <div className="linear-progress">
+                      <span style={{ width: `${normalizedSingleProgress}%` }} />
+                    </div>
+                    <div className="linear-mono flex justify-end text-base-content/60">
+                      {singleFormattedElapsed}
+                    </div>
+                    <div className="max-h-36 overflow-y-auto linear-well p-3">
                       {singleProgressEvents.length > 0 ? (
-                        <ul className="space-y-1 text-xs font-mono">
-                          {singleProgressTail.map(event => (
-                            <li key={`${event.jobId}-${event.timestamp}`}>
+                        <ul className="linear-mono space-y-1">
+                          {singleProgressTail.map((event, index) => (
+                            <li key={`${event.jobId}-${event.timestamp}-${index}`}>
                               <span className="font-semibold text-primary">{event.stage}</span>
-                              {event.message ? <span className="opacity-80"> — {event.message}</span> : null}
+                              {event.message ? (
+                                <span className="text-base-content/70"> — {event.message}</span>
+                              ) : null}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-xs opacity-60">Preparing job…</span>
+                        <span className="linear-hint">Preparing job…</span>
                       )}
                     </div>
                     {singleProcessing && (
-                      <p className="text-xs opacity-60">All fields are locked until the upload finishes.</p>
+                      <p className="linear-hint">
+                        All fields are locked until the upload finishes.
+                      </p>
                     )}
                   </div>
                 )}
                 {!singleProcessing && (
                   <div className="space-y-3">
                     {singleError && (
-                      <div className="alert alert-error flex-col items-start gap-1">
+                      <div className="linear-alert linear-alert-error flex flex-col items-start gap-1">
                         <span>{singleError}</span>
                       </div>
                     )}
                     {singleResult ? (
                       <div className="space-y-3">
                         <div>
-                          <div className="font-medium text-primary">{singleFile?.fileName ?? "Conversion complete"}</div>
+                          <div className="text-[13px] font-medium text-primary">
+                            {singleFile?.fileName ?? "Conversion complete"}
+                          </div>
                           {singleResult.details && (
-                            <p className="text-xs opacity-70">{singleResult.details}</p>
+                            <p className="linear-hint">{singleResult.details}</p>
                           )}
                         </div>
                         {singleResult.manifestUrl ? (
                           <div className="flex flex-wrap items-center gap-2">
-                            <code className="badge badge-outline whitespace-pre-wrap break-all">
+                            <code className="linear-mono linear-well whitespace-pre-wrap break-all px-2 py-1">
                               {singleResult.manifestUrl}
                             </code>
                             <button
                               type="button"
-                              className="btn btn-secondary btn-xs"
+                              className="linear-btn linear-btn-secondary linear-btn-xs"
                               onClick={() =>
-                                handleCopyUrl(singleResult.manifestUrl ?? undefined, { jobId: singleResult.jobId })
+                                handleCopyUrl(singleResult.manifestUrl ?? undefined, {
+                                  jobId: singleResult.jobId,
+                                })
                               }
                             >
                               Copy URL
@@ -792,18 +994,18 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs opacity-70">Manifest URL not available.</span>
+                          <span className="linear-hint">Manifest URL not available.</span>
                         )}
                         {singleResult.warnings && singleResult.warnings.length > 0 && (
-                          <div className="alert alert-warning flex-col items-start gap-1">
-                            {singleResult.warnings.map(warning => (
+                          <div className="linear-alert linear-alert-warning flex flex-col items-start gap-1">
+                            {singleResult.warnings.map((warning) => (
                               <span key={warning}>{warning}</span>
                             ))}
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="text-sm opacity-70">
+                      <div className="text-[13px] text-base-content/50">
                         Select a file and start conversion to see the streaming URL here.
                       </div>
                     )}
@@ -813,41 +1015,42 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
             </section>
           )}
 
-          {mode === "batch" && (
-            <section className="card bg-base-100 shadow-lg">
+          {view === "advanced" && mode === "batch" && (
+            <section className="linear-card">
               <div className="card-body gap-6">
                 <form className="flex flex-col gap-6" onSubmit={handleQueueBatch}>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium">Folder to ingest</span>
-                    </label>
-                    <div className="join">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="linear-label">Folder to ingest</span>
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={folderPath}
                         placeholder="Select a folder..."
                         readOnly
-                        className="input input-bordered join-item w-full"
+                        className="linear-input"
                       />
-                      <button type="button" className="btn btn-primary join-item" onClick={handleChooseFolder}>
+                      <button
+                        type="button"
+                        className="linear-btn linear-btn-primary shrink-0"
+                        onClick={handleChooseFolder}
+                      >
                         Choose folder
                       </button>
                     </div>
-                    <label className="label">
-                      <span className="label-text-alt opacity-60">
-                        Only supported video files are queued. Others appear in the skipped list.
-                      </span>
-                    </label>
+                    <span className="linear-hint">
+                      Only supported video files are queued. Others appear in the skipped list.
+                    </span>
                   </div>
 
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium">Object path prefix</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="batch-base-prefix" className="linear-label">
+                      Object path prefix
                     </label>
                     <input
+                      id="batch-base-prefix"
                       type="text"
                       value={basePrefix}
-                      onChange={event => {
+                      onChange={(event) => {
                         const value = event.target.value;
                         setBasePrefix(value);
                         if (value.trim().length > 0) {
@@ -855,31 +1058,35 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                         }
                       }}
                       placeholder="uploads/events"
-                      className={`input input-bordered ${basePrefixError ? "input-error" : ""}`}
-                      disabled={singleProcessing}
+                      className={`linear-input ${basePrefixError ? "linear-input-error" : ""}`}
                     />
-                    <label className="label">
-                      <span className="label-text-alt opacity-60">
-                        Uploaded manifests live under <code>{basePrefix.trim() || "(prefix)"}/{`<filename>/`}</code>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="linear-hint">
+                        Uploaded manifests live under{" "}
+                        <code>
+                          {basePrefix.trim() || "(prefix)"}/{`<filename>/`}
+                        </code>
                       </span>
                       {basePrefixError ? (
-                        <span className="label-text-alt text-error">{basePrefixError}</span>
+                        <span className="linear-hint shrink-0 text-error">{basePrefixError}</span>
                       ) : null}
-                    </label>
+                    </div>
                   </div>
 
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium">Output renditions</span>
-                    </label>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="linear-label">Output renditions</span>
                     <div className="flex flex-wrap gap-2">
-                      {resolutionOptions.map(option => {
+                      {resolutionOptions.map((option) => {
                         const isSelected = selectedRenditionSet.has(option.id);
                         return (
                           <button
                             key={option.id}
                             type="button"
-                            className={`btn btn-sm ${isSelected ? "btn-primary" : "btn-outline"} uppercase`}
+                            className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium transition ${
+                              isSelected
+                                ? "border-primary bg-primary text-primary-content"
+                                : "border-base-300 text-base-content/65 hover:bg-base-200"
+                            }`}
                             onClick={() => toggleRendition(option.id)}
                           >
                             {option.label}
@@ -889,17 +1096,18 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                     </div>
                   </div>
 
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-medium">Concurrency</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="batch-concurrency" className="linear-label">
+                      Concurrency
                     </label>
                     <div className="flex items-center gap-3">
                       <input
+                        id="batch-concurrency"
                         type="number"
                         min={1}
                         max={16}
                         value={concurrency}
-                        onChange={event => {
+                        onChange={(event) => {
                           const next = Number(event.target.value);
                           if (Number.isNaN(next)) {
                             setConcurrency(1);
@@ -907,23 +1115,24 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                             setConcurrency(Math.max(1, Math.min(16, Math.floor(next))));
                           }
                         }}
-                        className="input input-bordered w-24"
+                        className="linear-input w-24"
                       />
-                      <p className="text-xs opacity-70">
-                        Default 2. Higher values use more CPU/disk; excessive concurrency may slow or crash the system.
+                      <p className="linear-hint">
+                        Default 2. Higher values use more CPU/disk; excessive concurrency may slow
+                        or crash the system.
                       </p>
                     </div>
                   </div>
 
                   {folderFiles.length > 0 && (
-                    <div className="overflow-x-auto rounded-lg border border-base-300">
-                      <table className="table table-zebra">
+                    <div className="linear-card overflow-x-auto">
+                      <table className="linear-table">
                         <thead>
                           <tr>
-                            <th />
-                            <th>File</th>
-                            <th>Size</th>
-                            <th>Path</th>
+                            <th scope="col" />
+                            <th scope="col">File</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Path</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -935,11 +1144,14 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                                   className="checkbox checkbox-sm"
                                   checked={file.selected}
                                   onChange={() => toggleFolderFile(index)}
+                                  aria-label={`Select ${file.fileName}`}
                                 />
                               </td>
                               <td>{file.fileName}</td>
-                              <td className="text-sm opacity-70">{formatBytes(file.size)}</td>
-                              <td className="text-xs opacity-60 break-all">{file.filePath}</td>
+                              <td className="text-base-content/60">{formatBytes(file.size)}</td>
+                              <td className="linear-mono break-all text-base-content/60">
+                                {file.filePath}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -948,10 +1160,10 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
                   )}
 
                   {skippedFiles.length > 0 && (
-                    <div className="alert alert-warning flex-col items-start gap-1">
+                    <div className="linear-alert linear-alert-warning flex flex-col items-start gap-1">
                       <span className="font-semibold">Skipped files</span>
-                      <ul className="list-disc pl-5 text-sm">
-                        {skippedFiles.slice(0, 5).map(file => (
+                      <ul className="list-disc pl-5">
+                        {skippedFiles.slice(0, 5).map((file) => (
                           <li key={file.filePath}>{file.filePath}</li>
                         ))}
                         {skippedFiles.length > 5 && (
@@ -963,368 +1175,441 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
 
                   <button
                     type="submit"
-                    className="btn btn-primary"
+                    className="linear-btn linear-btn-primary h-9 w-full"
                     disabled={
-                      folderFiles.every(file => !file.selected) ||
+                      folderFiles.every((file) => !file.selected) ||
                       selectedRenditions.length === 0 ||
                       basePrefix.trim().length === 0
                     }
                   >
-                    Queue selected files ({folderFiles.filter(file => file.selected).length})
+                    Queue selected files ({folderFiles.filter((file) => file.selected).length})
                   </button>
                 </form>
               </div>
             </section>
           )}
 
-          {mode === "batch" && (
-            <section className="card bg-base-100 shadow-lg">
+          {view === "advanced" && mode === "batch" && (
+            <section className="linear-card">
               <div className="card-body gap-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="card-title text-lg">Queue progress</h2>
-                  <p className="text-xs opacity-60">
-                    {queueUpdate?.queueStatus === "running" && "Processing jobs…"}
-                    {queueUpdate?.queueStatus === "paused" && "Queue paused"}
-                    {queueUpdate?.queueStatus === "idle" && "Queue idle"}
-                  </p>
-                </div>
-                <div className="btn-group btn-group-sm">
-                  {queueUpdate?.queueStatus !== "paused" ? (
-                    <button type="button" className="btn btn-outline" onClick={() => handleQueueControl("pause")}>
-                      Pause
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div aria-live="polite">
+                    <h2 className="text-base font-semibold tracking-tight">Queue progress</h2>
+                    <p className="linear-hint">
+                      {queueUpdate?.queueStatus === "running" && "Processing jobs…"}
+                      {queueUpdate?.queueStatus === "paused" && "Queue paused"}
+                      {queueUpdate?.queueStatus === "idle" && "Queue idle"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {queueUpdate?.queueStatus === "running" && (
+                      <button
+                        type="button"
+                        className="linear-btn linear-btn-secondary linear-btn-sm"
+                        onClick={() => handleQueueControl("pause")}
+                      >
+                        Pause
+                      </button>
+                    )}
+                    {queueUpdate?.queueStatus === "paused" && (
+                      <button
+                        type="button"
+                        className="linear-btn linear-btn-secondary linear-btn-sm"
+                        onClick={() => handleQueueControl("resume")}
+                      >
+                        Resume
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      onClick={() => handleQueueControl("cancel-remaining")}
+                    >
+                      Cancel remaining
                     </button>
-                  ) : (
-                    <button type="button" className="btn btn-outline" onClick={() => handleQueueControl("resume")}>
-                      Resume
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      onClick={() => handleQueueControl("clear-completed")}
+                    >
+                      Clear completed
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => handleQueueControl("cancel-remaining")}
-                  >
-                    Cancel remaining
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => handleQueueControl("clear-completed")}
-                  >
-                    Clear completed
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => setIsLogOpen(true)}
-                    disabled={jobLogs.length === 0}
-                  >
-                    View live log
-                  </button>
-                </div>
-              </div>
-
-              <progress className="progress progress-primary w-full" value={overallPercent} max={100} />
-
-              {queueTotals && (
-                <div className="stats stats-horizontal shadow">
-                  <div className="stat">
-                    <div className="stat-title">Total</div>
-                    <div className="stat-value text-primary">{queueTotals.total}</div>
-                    <div className="stat-desc">Jobs in queue</div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-title">Completed</div>
-                    <div className="stat-value text-success">{queueTotals.completed}</div>
-                    <div className="stat-desc text-xs">
-                      Failed {queueTotals.failed} / Skipped {queueTotals.skipped}
-                    </div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-title">Active</div>
-                    <div className="stat-value text-info">
-                      {queueTotals.processing + queueTotals.uploading}
-                    </div>
-                    <div className="stat-desc text-xs">
-                      Pending {queueTotals.pending} / Canceled {queueTotals.canceled}
-                    </div>
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-ghost linear-btn-sm"
+                      onClick={() => setIsLogOpen(true)}
+                      disabled={jobLogs.length === 0}
+                    >
+                      View live log
+                    </button>
                   </div>
                 </div>
-              )}
+
+                <div className="linear-progress">
+                  <span style={{ width: `${overallPercent}%` }} />
+                </div>
+                <div className="linear-mono flex justify-end text-base-content/60">
+                  {formattedElapsed}
+                </div>
+
+                {queueTotals && (
+                  <div className="grid grid-cols-3 divide-x divide-base-300 rounded-md border border-base-300">
+                    <div className="flex flex-col gap-0.5 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
+                        Total
+                      </div>
+                      <div className="text-xl font-semibold text-primary">{queueTotals.total}</div>
+                      <div className="linear-hint">Jobs in queue</div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
+                        Completed
+                      </div>
+                      <div className="text-xl font-semibold text-success">
+                        {queueTotals.completed}
+                      </div>
+                      <div className="linear-hint">
+                        Failed {queueTotals.failed} / Skipped {queueTotals.skipped}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
+                        Active
+                      </div>
+                      <div className="text-xl font-semibold text-info">
+                        {queueTotals.processing + queueTotals.uploading}
+                      </div>
+                      <div className="linear-hint">
+                        Pending {queueTotals.pending} / Canceled {queueTotals.canceled}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
           )}
 
-          {mode === "batch" && (
-            <section className="card bg-base-100 shadow-lg">
+          {view === "advanced" && mode === "batch" && (
+            <section className="linear-card">
               <div className="card-body gap-4">
-              <h2 className="card-title text-lg">Jobs</h2>
-              <div className="overflow-x-auto rounded-lg border border-base-300">
-                <table className="table table-zebra">
-                  <thead>
-                    <tr>
-                      <th>File</th>
-                      <th>Status</th>
-                      <th>Progress</th>
-                      <th>Object key</th>
-                      <th>Message</th>
-                      <th>Manifest</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.length === 0 ? (
+                <h2 className="text-base font-semibold tracking-tight">Jobs</h2>
+                <div className="linear-card overflow-x-auto">
+                  <table className="linear-table">
+                    <thead>
                       <tr>
-                        <td colSpan={6} className="text-center text-sm opacity-70">
-                          No jobs queued yet.
-                        </td>
+                        <th scope="col">File</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Progress</th>
+                        <th scope="col">Object key</th>
+                        <th scope="col">Message</th>
+                        <th scope="col">Manifest</th>
                       </tr>
-                    ) : (
-                      jobs.map(job => (
-                        <tr
-                          key={job.id}
-                          className={selectedJobId === job.id ? "active" : ""}
-                          onClick={() => setSelectedJobId(job.id)}
-                        >
-                          <td className="w-64">
-                            <div className="font-medium truncate">{job.fileName}</div>
-                            <div className="text-xs opacity-70 truncate">{job.filePath}</div>
-                          </td>
-                          <td className="w-28">
-                            <span className={`badge badge-sm ${statusClassMap[job.status]}`}>
-                              {statusLabel(job.status)}
-                            </span>
-                          </td>
-                          <td className="w-20">{percentDisplay(job.percent)}</td>
-                          <td className="w-64 text-xs opacity-70 break-all">{job.objectKey}</td>
-                          <td className="text-xs opacity-70">{job.message}</td>
-                          <td className="w-40">
-                            {job.manifestUrl ? (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="btn btn-xs btn-secondary"
-                                  onClick={() => handleCopyUrl(job.manifestUrl, { jobId: job.id })}
-                                >
-                                  Copy URL
-                                </button>
-                                {copiedJobId === job.id && (
-                                  <span className="text-xs text-success">Copied!</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs opacity-50">Pending</span>
-                            )}
+                    </thead>
+                    <tbody>
+                      {jobs.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-8 text-center text-[13px] text-base-content/50"
+                          >
+                            No jobs queued yet.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {copyStatus !== "idle" && (
-                <div className="text-xs text-info">
-                  {copyStatus === "copied" ? "Copied to clipboard." : "Copy failed. Try again."}
-                </div>
-              )}
-              </div>
-            </section>
-          )}
-
-          {mode === "history" && (
-            <section className="card bg-base-100 shadow-lg">
-              <div className="card-body gap-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="card-title text-lg">History</h2>
-                  <p className="text-xs opacity-60">
-                    Stored results for processed files (showing {historyRecords.length} of {historyTotal}).
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <form className="join" onSubmit={handleHistorySearchSubmit}>
-                    <input
-                      type="text"
-                      placeholder="Search history…"
-                      className="input input-bordered input-sm join-item"
-                      value={historySearchInput}
-                      onChange={event => setHistorySearchInput(event.target.value)}
-                    />
-                    <button type="submit" className="btn btn-sm btn-primary join-item">
-                      Search
-                    </button>
-                  </form>
-                  <select
-                    className="select select-bordered select-sm"
-                    value={historyStatusFilter}
-                    onChange={event => setHistoryStatusFilter(event.target.value as JobStatus | "all")}
-                  >
-                    <option value="all">All statuses</option>
-                    <option value="completed">Completed</option>
-                    <option value="failed">Failed</option>
-                    <option value="skipped">Skipped</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
-                    disabled={selectedHistoryCount === 0}
-                    onClick={handleGenerateBulkUrls}
-                  >
-                    Generate URLs
-                  </button>
-                  {selectedHistoryCount > 0 && (
-                    <span className="text-xs opacity-60">{selectedHistoryCount} selected</span>
-                  )}
-                  <button type="button" className="btn btn-sm btn-outline" onClick={handleHistoryRefresh}>
-                    {historyLoading ? "Loading…" : "Refresh"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border border-base-300">
-                <table className="table table-zebra">
-                  <thead>
-                    <tr>
-                      <th className="w-10">
-                        <input
-                          ref={headerHistoryCheckboxRef}
-                          type="checkbox"
-                          className="checkbox checkbox-sm"
-                          checked={allHistorySelected}
-                          onChange={toggleHistorySelectAll}
-                          aria-label="Select all history entries"
-                        />
-                      </th>
-                      <th>Completed</th>
-                      <th>File</th>
-                      <th>Status</th>
-                      <th>Manifest</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyRecords.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center text-sm opacity-70">
-                          No history entries yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      historyRecords.map(record => (
-                        <tr key={record.id}>
-                          <td className="align-middle">
-                            <input
-                              type="checkbox"
-                              className="checkbox checkbox-sm"
-                              checked={selectedHistoryIds.has(record.id)}
-                              onChange={() => toggleHistorySelection(record.id)}
-                              aria-label={`Select ${record.fileName}`}
-                            />
-                          </td>
-                          <td className="text-xs">
-                            {record.completedAt
-                              ? new Date(record.completedAt).toLocaleString()
-                              : "—"}
-                          </td>
-                          <td className="w-48">
-                            <div className="font-medium truncate" title={record.fileName}>
-                              {record.fileName}
-                            </div>
-                          </td>
-                          <td className="w-24">
-                            <span className={`badge badge-xs ${statusClassMap[record.status]}`}>
-                              {statusLabel(record.status)}
-                            </span>
-                          </td>
-                          <td className="align-middle">
-                            <span
-                              className="text-xs opacity-70 block"
-                              style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-                              title={record.manifestUrl ?? "No manifest URL"}
-                            >
-                              {record.manifestUrl ?? "—"}
-                            </span>
-                          </td>
-                          <td className="w-52">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {record.manifestUrl ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-xs"
-                                  onClick={() =>
-                                    handleCopyUrl(record.manifestUrl ?? undefined, { historyId: record.id })
-                                  }
-                                >
-                                  Copy URL
-                                </button>
+                      ) : (
+                        jobs.map((job) => (
+                          <tr
+                            key={job.id}
+                            className={selectedJobId === job.id ? "bg-primary/10" : ""}
+                            tabIndex={0}
+                            onClick={() => setSelectedJobId(job.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setSelectedJobId(job.id);
+                              }
+                            }}
+                          >
+                            <td className="w-64">
+                              <div className="truncate font-medium">{job.fileName}</div>
+                              <div className="linear-hint truncate">{job.filePath}</div>
+                            </td>
+                            <td className="w-28">
+                              <span className={`linear-badge ${statusClassMap[job.status]}`}>
+                                {statusLabel(job.status)}
+                              </span>
+                            </td>
+                            <td className="w-20">{percentDisplay(job.percent)}</td>
+                            <td className="w-64 break-all text-xs text-base-content/60">
+                              {job.objectKey}
+                            </td>
+                            <td className="text-xs text-base-content/60">{job.message}</td>
+                            <td className="w-40">
+                              {job.manifestUrl ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="linear-btn linear-btn-secondary linear-btn-xs"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleCopyUrl(job.manifestUrl, { jobId: job.id });
+                                    }}
+                                  >
+                                    Copy URL
+                                  </button>
+                                  {copiedJobId === job.id && (
+                                    <span className="text-xs text-success">Copied!</span>
+                                  )}
+                                </div>
                               ) : (
-                                <span className="text-xs opacity-50 whitespace-nowrap">No URL</span>
+                                <span className="text-xs text-base-content/40">Pending</span>
                               )}
-                              <button
-                                type="button"
-                                className="btn btn-outline btn-xs"
-                                onClick={() => handleHistoryDelete(record)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {copyStatus !== "idle" && (
-                <div className="text-xs text-info">
-                  {copyStatus === "copied" ? "Copied to clipboard." : "Copy failed. Try again."}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
+                {copyStatus !== "idle" && (
+                  <div className="text-xs text-info">
+                    {copyStatus === "copied" ? "Copied to clipboard." : "Copy failed. Try again."}
+                  </div>
+                )}
               </div>
             </section>
           )}
 
+          {view === "history" && (
+            <section className="linear-card">
+              <div className="card-body gap-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-semibold tracking-tight">History</h2>
+                    <p className="linear-hint">
+                      Stored results for processed files (showing {historyRecords.length} of{" "}
+                      {historyTotal}).
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <form className="flex gap-2" onSubmit={handleHistorySearchSubmit}>
+                      <label htmlFor="history-search" className="sr-only">
+                        Search history
+                      </label>
+                      <input
+                        id="history-search"
+                        type="text"
+                        placeholder="Search history…"
+                        className="linear-input h-7"
+                        value={historySearchInput}
+                        onChange={(event) => setHistorySearchInput(event.target.value)}
+                      />
+                      <button type="submit" className="linear-btn linear-btn-primary linear-btn-sm">
+                        Search
+                      </button>
+                    </form>
+                    <label htmlFor="history-status" className="sr-only">
+                      Filter by status
+                    </label>
+                    <select
+                      id="history-status"
+                      className="linear-select h-7 w-auto"
+                      value={historyStatusFilter}
+                      onChange={(event) =>
+                        setHistoryStatusFilter(event.target.value as JobStatus | "all")
+                      }
+                    >
+                      <option value="all">All statuses</option>
+                      <option value="completed">Completed</option>
+                      <option value="failed">Failed</option>
+                      <option value="skipped">Skipped</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      disabled={selectedHistoryCount === 0}
+                      onClick={handleGenerateBulkUrls}
+                    >
+                      Generate URLs
+                    </button>
+                    {selectedHistoryCount > 0 && (
+                      <span className="linear-hint">{selectedHistoryCount} selected</span>
+                    )}
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      onClick={handleHistoryRefresh}
+                    >
+                      {historyLoading ? "Loading…" : "Refresh"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="linear-card overflow-x-auto">
+                  <table className="linear-table">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="w-10">
+                          <input
+                            ref={headerHistoryCheckboxRef}
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={allHistorySelected}
+                            onChange={toggleHistorySelectAll}
+                            aria-label="Select all history entries"
+                          />
+                        </th>
+                        <th scope="col">Completed</th>
+                        <th scope="col">File</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Manifest</th>
+                        <th scope="col">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyRecords.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-8 text-center text-[13px] text-base-content/50"
+                          >
+                            No history entries yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        historyRecords.map((record) => (
+                          <tr key={record.id}>
+                            <td className="align-middle">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm"
+                                checked={selectedHistoryIds.has(record.id)}
+                                onChange={() => toggleHistorySelection(record.id)}
+                                aria-label={`Select ${record.fileName}`}
+                              />
+                            </td>
+                            <td className="text-xs text-base-content/60">
+                              {record.completedAt
+                                ? new Date(record.completedAt).toLocaleString()
+                                : "—"}
+                            </td>
+                            <td className="w-48">
+                              <div className="truncate font-medium" title={record.fileName}>
+                                {record.fileName}
+                              </div>
+                            </td>
+                            <td className="w-24">
+                              <span className={`linear-badge ${statusClassMap[record.status]}`}>
+                                {statusLabel(record.status)}
+                              </span>
+                            </td>
+                            <td className="align-middle">
+                              <span
+                                className="linear-mono block text-base-content/60"
+                                style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+                                title={record.manifestUrl ?? "No manifest URL"}
+                              >
+                                {record.manifestUrl ?? "—"}
+                              </span>
+                            </td>
+                            <td className="w-52">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {record.manifestUrl ? (
+                                  <button
+                                    type="button"
+                                    className="linear-btn linear-btn-secondary linear-btn-xs"
+                                    onClick={() =>
+                                      handleCopyUrl(record.manifestUrl ?? undefined, {
+                                        historyId: record.id,
+                                      })
+                                    }
+                                  >
+                                    Copy URL
+                                  </button>
+                                ) : (
+                                  <span className="whitespace-nowrap text-xs text-base-content/40">
+                                    No URL
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  className="linear-btn linear-btn-ghost linear-btn-xs hover:text-error"
+                                  onClick={() => handleHistoryDelete(record)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {historyRecords.length < historyTotal && (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      disabled={historyLoading}
+                      onClick={() => void loadHistory(historyRecords.length)}
+                    >
+                      {historyLoading ? "Loading…" : "Load more"}
+                    </button>
+                  </div>
+                )}
+                {copyStatus !== "idle" && (
+                  <div className="text-xs text-info">
+                    {copyStatus === "copied" ? "Copied to clipboard." : "Copy failed. Try again."}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
       {isBulkUrlModalOpen && (
         <div
+          ref={bulkUrlDialogRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
-          onClick={() => setIsBulkUrlModalOpen(false)}
+          aria-label="Bulk URLs"
+          tabIndex={-1}
+          onClick={closeBulkUrlModal}
         >
           <div
-            className="card w-full max-w-3xl bg-base-100 shadow-2xl"
-            onClick={event => event.stopPropagation()}
+            className="linear-card w-full max-w-3xl"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="card-body gap-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="card-title text-lg">Bulk URLs</h2>
-                  <p className="text-xs opacity-60">
+                  <h2 className="text-base font-semibold tracking-tight">Bulk URLs</h2>
+                  <p className="linear-hint">
                     {bulkUrlCount} link{bulkUrlCount === 1 ? "" : "s"} ready to copy.
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="btn btn-sm btn-outline"
+                  className="linear-btn linear-btn-secondary linear-btn-sm"
                   onClick={() => setIsBulkUrlModalOpen(false)}
                 >
                   Close
                 </button>
               </div>
               <textarea
-                className="textarea textarea-bordered h-64 w-full resize-none font-mono text-xs"
+                className="linear-mono linear-well h-64 w-full resize-none p-3 focus:outline-none"
                 value={bulkUrlText}
                 readOnly
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs opacity-60">
+                <span className="linear-hint">
                   Copy to paste the selected manifest URLs wherever you need them.
                 </span>
                 <button
                   type="button"
-                  className="btn btn-sm btn-primary"
+                  className="linear-btn linear-btn-primary linear-btn-sm"
                   onClick={handleCopyBulkUrls}
                   disabled={bulkUrlCount === 0}
                 >
@@ -1338,69 +1623,91 @@ const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selecte
 
       {isLogOpen && (
         <div
+          ref={logDialogRef}
           className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
-          onClick={() => setIsLogOpen(false)}
+          aria-label="Live job log"
+          tabIndex={-1}
+          onClick={closeLogModal}
         >
           <div
-            className="card w-full max-w-4xl bg-base-100 shadow-2xl"
-            onClick={event => event.stopPropagation()}
+            className="linear-card w-full max-w-4xl"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="card-body gap-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="card-title text-lg">Live job log</h2>
-                  <p className="text-xs opacity-60">
+                  <h2 className="text-base font-semibold tracking-tight">Live job log</h2>
+                  <p className="linear-hint">
                     Most recent events first. Showing {filteredLogs.length} entries.
                   </p>
                   {activeJob && (
-                    <p className="text-xs opacity-80">
+                    <p className="text-[13px] text-base-content/70">
                       Focused job: <span className="font-medium">{activeJob.fileName}</span>
                     </p>
                   )}
                 </div>
-                <button type="button" className="btn btn-sm btn-outline" onClick={() => setIsLogOpen(false)}>
+                <button
+                  type="button"
+                  className="linear-btn linear-btn-secondary linear-btn-sm"
+                  onClick={() => setIsLogOpen(false)}
+                >
                   Close
                 </button>
               </div>
-              <div className="max-h-[70vh] overflow-y-auto rounded border border-base-300 bg-base-200/40">
-                <table className="table table-pin-rows table-sm">
-                  <thead className="bg-base-200">
+              <div className="max-h-[70vh] overflow-y-auto linear-well rounded-[10px]">
+                <table className="linear-table table-pin-rows">
+                  <thead className="linear-thead">
                     <tr>
-                      <th className="w-28">Time</th>
-                      <th className="w-32">File</th>
-                      <th className="w-24">Status</th>
-                      <th>Stage / message</th>
-                      <th className="w-12 text-right">%</th>
+                      <th scope="col" className="w-28">
+                        Time
+                      </th>
+                      <th scope="col" className="w-32">
+                        File
+                      </th>
+                      <th scope="col" className="w-24">
+                        Status
+                      </th>
+                      <th scope="col">Stage / message</th>
+                      <th scope="col" className="w-12 text-right">
+                        %
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center text-sm opacity-70">
+                        <td
+                          colSpan={5}
+                          className="py-8 text-center text-[13px] text-base-content/50"
+                        >
                           No log entries yet.
                         </td>
                       </tr>
                     ) : (
-                      filteredLogs.map(entry => {
-                        const job = jobs.find(j => j.id === entry.jobId);
+                      filteredLogs.map((entry) => {
+                        const job = jobs.find((j) => j.id === entry.jobId);
                         return (
                           <tr key={entry.id}>
-                            <td className="align-top text-xs font-mono">
+                            <td className="linear-mono align-top">
                               {new Date(entry.timestamp).toLocaleTimeString()}
                             </td>
                             <td className="align-top text-xs">
                               {job?.fileName ?? entry.jobId.slice(0, 8)}
                             </td>
                             <td className="align-top">
-                              <span className={`badge badge-outline badge-xs capitalize ${statusClassMap[entry.status]}`}>
+                              <span
+                                className={`linear-badge capitalize ${statusClassMap[entry.status]}`}
+                              >
                                 {statusLabel(entry.status)}
                               </span>
                             </td>
                             <td className="align-top text-xs">
                               <div className="font-medium">{entry.stage}</div>
-                              {entry.message && <div className="opacity-70">{entry.message}</div>}
+                              {entry.message && (
+                                <div className="text-base-content/60">{entry.message}</div>
+                              )}
                             </td>
                             <td className="align-top text-right text-xs">
                               {entry.percent !== undefined ? entry.percent.toFixed(1) : "—"}

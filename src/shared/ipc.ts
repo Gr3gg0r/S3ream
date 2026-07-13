@@ -1,3 +1,5 @@
+export const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".mkv", ".avi", ".m4v", ".webm"];
+
 export type JobStatus =
   | "pending"
   | "queued"
@@ -30,12 +32,50 @@ export interface SingleProcessRequest {
   basePrefix: string;
   filePath: string;
   renditions: string[];
+  destination?: Destination;
+}
+
+export type Destination = { type: "s3" } | { type: "local"; directory: string };
+
+/**
+ * Settings submitted from the renderer. Empty `accessKeyId` / `secretAccessKey`
+ * means "keep the currently stored value" so the form can round-trip masked
+ * secrets without ever seeing them.
+ */
+export interface S3SettingsInput {
+  endpointUrl: string;
+  region: string;
+  bucketName: string;
+  bucketUrl: string;
+  viewEndpoint: string;
+  pathStyle: boolean;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
+/**
+ * Renderer-facing view of the saved settings. Secrets are never shipped to
+ * the renderer — only whether they exist.
+ */
+export interface AppSettingsView {
+  s3: {
+    endpointUrl: string;
+    region: string;
+    bucketName: string;
+    bucketUrl: string;
+    viewEndpoint: string;
+    pathStyle: boolean;
+    hasAccessKey: boolean;
+    hasSecretKey: boolean;
+  } | null;
+  encryptionAvailable: boolean;
 }
 
 export interface VideoJobPayload {
   filePath: string;
   objectKey: string;
   renditions: string[];
+  destination?: Destination;
 }
 
 export interface VideoJobProgress {
@@ -123,7 +163,12 @@ export interface FolderScanResult {
   }>;
 }
 
-export type QueueControlAction = "pause" | "resume" | "cancel-current" | "cancel-remaining" | "clear-completed";
+export type QueueControlAction =
+  | "pause"
+  | "resume"
+  | "cancel-current"
+  | "cancel-remaining"
+  | "clear-completed";
 
 export interface HistoryQuery {
   search?: string;
@@ -136,6 +181,7 @@ export interface HistoryRecord {
   id: string;
   filePath: string;
   fileName: string;
+  fileHash: string | null;
   basePrefix: string | null;
   renditions: string[];
   queueMode: "single" | "batch";
@@ -166,6 +212,9 @@ export interface ExposedBridge {
   onJobLog(callback: (entry: JobLogEntry) => void): () => void;
   listHistory(query?: HistoryQuery): Promise<HistoryListResponse>;
   deleteHistory(jobId: string): Promise<void>;
+  getPathForFile(file: File): string;
+  getSettings(): Promise<AppSettingsView>;
+  saveSettings(settings: S3SettingsInput): Promise<AppSettingsView>;
 }
 
 declare global {
