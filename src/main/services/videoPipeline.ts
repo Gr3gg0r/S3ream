@@ -6,10 +6,23 @@ import { execa } from "execa";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import type { Client } from "minio";
-import { buildPublicUrl, ensureBucket, getMinioClient, sanitizeObjectKey } from "./minioClient";
+import {
+  buildPublicUrl,
+  ensureBucket,
+  getActiveBucketName,
+  getMinioClient,
+  sanitizeObjectKey,
+} from "./minioClient";
 import type { VideoJobPayload, VideoJobProgress, VideoJobResult } from "@shared/ipc";
 
 type ProgressEmitter = (progress: VideoJobProgress) => void;
+
+export class JobCanceledError extends Error {
+  constructor() {
+    super("Job canceled by user");
+    this.name = "JobCanceledError";
+  }
+}
 
 interface ConversionResult {
   outputDir: string;
@@ -47,6 +60,20 @@ const ffmpegPath = ffmpegInstaller.path;
 const ffprobePath = ffprobeInstaller.path;
 
 const PROCESSING_PERCENT_SHARE = 85;
+const DEFAULT_UPLOAD_CONCURRENCY = 4;
+const MAX_UPLOAD_CONCURRENCY = 16;
+
+export const getUploadConcurrency = (): number => {
+  const raw = process.env.S3_UPLOAD_CONCURRENCY;
+  if (!raw) {
+    return DEFAULT_UPLOAD_CONCURRENCY;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    return DEFAULT_UPLOAD_CONCURRENCY;
+  }
+  return Math.min(MAX_UPLOAD_CONCURRENCY, Math.max(1, parsed));
+};
 
 const VARIANT_PROFILES: VariantProfile[] = [
   {
@@ -58,7 +85,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 1_200_000,
     audioBitrate: 96_000,
     x264Profile: "baseline",
-    x264Level: "3.0"
+    x264Level: "3.0",
   },
   {
     id: "360p",
@@ -69,7 +96,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 2_000_000,
     audioBitrate: 96_000,
     x264Profile: "baseline",
-    x264Level: "3.0"
+    x264Level: "3.0",
   },
   {
     id: "480p",
@@ -80,7 +107,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 3_000_000,
     audioBitrate: 128_000,
     x264Profile: "main",
-    x264Level: "3.1"
+    x264Level: "3.1",
   },
   {
     id: "720p",
@@ -91,7 +118,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 6_000_000,
     audioBitrate: 128_000,
     x264Profile: "high",
-    x264Level: "4.0"
+    x264Level: "4.0",
   },
   {
     id: "1080p",
@@ -102,7 +129,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 10_000_000,
     audioBitrate: 192_000,
     x264Profile: "high",
-    x264Level: "4.2"
+    x264Level: "4.2",
   },
   {
     id: "2k",
@@ -113,7 +140,7 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 16_000_000,
     audioBitrate: 192_000,
     x264Profile: "high",
-    x264Level: "5.0"
+    x264Level: "5.0",
   },
   {
     id: "4k",
@@ -124,15 +151,20 @@ const VARIANT_PROFILES: VariantProfile[] = [
     bufferSize: 28_000_000,
     audioBitrate: 256_000,
     x264Profile: "high",
-    x264Level: "5.2"
-  }
+    x264Level: "5.2",
+  },
 ];
 
-const formatBitrate = (bitsPerSecond: number) => `${Math.max(1, Math.round(bitsPerSecond / 1_000))}k`;
+export const formatBitrate = (bitsPerSecond: number) =>
+  `${Math.max(1, Math.round(bitsPerSecond / 1_000))}k`;
 
-const evenDimension = (value: number) => Math.max(2, Math.round(value / 2) * 2);
+export const evenDimension = (value: number) => Math.max(2, Math.round(value / 2) * 2);
 
-const computeScaledWidth = (sourceWidth: number | null, sourceHeight: number | null, targetHeight: number) => {
+export const computeScaledWidth = (
+  sourceWidth: number | null,
+  sourceHeight: number | null,
+  targetHeight: number,
+) => {
   if (!sourceWidth || !sourceHeight || sourceHeight === 0) {
     return null;
   }
@@ -140,12 +172,12 @@ const computeScaledWidth = (sourceWidth: number | null, sourceHeight: number | n
   return evenDimension(targetHeight * aspectRatio);
 };
 
-const parseFrameRate = (value: string | undefined): number | null => {
+export const parseFrameRate = (value: string | undefined): number | null => {
   if (!value || value === "0/0") {
     return null;
   }
   if (value.includes("/")) {
-    const [numerator, denominator] = value.split("/").map(part => Number.parseFloat(part));
+    const [numerator, denominator] = value.split("/").map((part) => Number.parseFloat(part));
     if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
       return null;
     }
@@ -194,19 +226,26 @@ const isAccessDeniedError = (error: unknown) => {
   return candidate.code === "EACCES";
 };
 
-const probeVideoMetadata = async (inputFile: string): Promise<VideoMetadata> => {
+export const probeVideoMetadata = async (
+  inputFile: string,
+  signal?: AbortSignal,
+): Promise<VideoMetadata> => {
   try {
-    const { stdout } = await execa(ffprobePath, [
-      "-v",
-      "error",
-      "-select_streams",
-      "v:0",
-      "-show_entries",
-      "stream=width,height,avg_frame_rate:format=duration",
-      "-of",
-      "json",
-      inputFile
-    ]);
+    const { stdout } = await execa(
+      ffprobePath,
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height,avg_frame_rate:format=duration",
+        "-of",
+        "json",
+        inputFile,
+      ],
+      { cancelSignal: signal },
+    );
 
     const parsed = JSON.parse(stdout) as {
       streams?: Array<{ width?: number; height?: number; avg_frame_rate?: string }>;
@@ -214,15 +253,21 @@ const probeVideoMetadata = async (inputFile: string): Promise<VideoMetadata> => 
     };
 
     const stream = parsed.streams?.[0];
-    const durationSeconds = parsed.format?.duration ? Number.parseFloat(parsed.format.duration) : null;
+    const durationSeconds = parsed.format?.duration
+      ? Number.parseFloat(parsed.format.duration)
+      : null;
 
     return {
-      durationMs: durationSeconds && Number.isFinite(durationSeconds) ? durationSeconds * 1000 : null,
+      durationMs:
+        durationSeconds && Number.isFinite(durationSeconds) ? durationSeconds * 1000 : null,
       width: stream?.width ?? null,
       height: stream?.height ?? null,
-      frameRate: parseFrameRate(stream?.avg_frame_rate)
+      frameRate: parseFrameRate(stream?.avg_frame_rate),
     };
   } catch (error) {
+    if (signal?.aborted) {
+      throw new JobCanceledError();
+    }
     if (isAccessDeniedError(error)) {
       const hint = isWindows
         ? "Run the application as Administrator once to allow FFprobe to execute."
@@ -234,34 +279,36 @@ const probeVideoMetadata = async (inputFile: string): Promise<VideoMetadata> => 
   }
 };
 
-const determineVariantProfiles = (
+export const determineVariantProfiles = (
   metadata: VideoMetadata,
-  requestedIds?: string[]
+  requestedIds?: string[],
 ): { variants: VariantProfile[]; warnings: string[] } => {
   const warnings: string[] = [];
   const requestedMap = new Map<string, string>();
   if (requestedIds) {
-    requestedIds.forEach(id => requestedMap.set(id.toLowerCase(), id));
+    requestedIds.forEach((id) => requestedMap.set(id.toLowerCase(), id));
   }
   const requestedSet = requestedMap.size > 0 ? new Set(requestedMap.keys()) : null;
 
-  const knownIds = new Set(VARIANT_PROFILES.map(profile => profile.id.toLowerCase()));
+  const knownIds = new Set(VARIANT_PROFILES.map((profile) => profile.id.toLowerCase()));
   if (requestedSet) {
-    const unknown = Array.from(requestedSet).filter(id => !knownIds.has(id));
+    const unknown = Array.from(requestedSet).filter((id) => !knownIds.has(id));
     if (unknown.length > 0) {
-      const pretty = unknown.map(id => requestedMap.get(id) ?? id);
+      const pretty = unknown.map((id) => requestedMap.get(id) ?? id);
       warnings.push(`Ignoring unknown renditions: ${pretty.join(", ")}`);
-      unknown.forEach(id => requestedSet.delete(id));
+      unknown.forEach((id) => requestedSet.delete(id));
     }
   }
 
   const sourceHeight = metadata.height ?? null;
-  const selected = VARIANT_PROFILES.filter(profile => {
+  const selected = VARIANT_PROFILES.filter((profile) => {
     if (requestedSet && !requestedSet.has(profile.id.toLowerCase())) {
       return false;
     }
     if (sourceHeight && profile.height > sourceHeight) {
-      warnings.push(`Skipped ${profile.label} because the source height is only ${sourceHeight}px.`);
+      warnings.push(
+        `Skipped ${profile.label} because the source height is only ${sourceHeight}px.`,
+      );
       return false;
     }
     return true;
@@ -270,33 +317,41 @@ const determineVariantProfiles = (
   if (selected.length === 0) {
     if (requestedSet && requestedSet.size > 0) {
       throw new Error(
-        "None of the selected renditions are supported by this video. Choose lower resolutions and try again."
+        "None of the selected renditions are supported by this video. Choose lower resolutions and try again.",
       );
     }
     if (!sourceHeight) {
       warnings.push("Video resolution could not be detected; defaulting to 720p output.");
-      return { variants: [VARIANT_PROFILES.find(profile => profile.id === "720p") ?? VARIANT_PROFILES[2]], warnings };
+      return {
+        variants: [
+          VARIANT_PROFILES.find((profile) => profile.id === "720p") ?? VARIANT_PROFILES[2],
+        ],
+        warnings,
+      };
     }
 
     const fallback = [...VARIANT_PROFILES]
       .sort((a, b) => a.height - b.height)
-      .find(profile => profile.height <= sourceHeight);
+      .find((profile) => profile.height <= sourceHeight);
 
     if (fallback) {
       warnings.push(
-        `Using ${fallback.label} as a fallback because no preset matched the source resolution (${sourceHeight}px).`
+        `Using ${fallback.label} as a fallback because no preset matched the source resolution (${sourceHeight}px).`,
       );
       return { variants: [fallback], warnings };
     }
 
     warnings.push("No suitable renditions found; defaulting to 360p output.");
-    return { variants: [VARIANT_PROFILES.find(profile => profile.id === "360p") ?? VARIANT_PROFILES[0]], warnings };
+    return {
+      variants: [VARIANT_PROFILES.find((profile) => profile.id === "360p") ?? VARIANT_PROFILES[0]],
+      warnings,
+    };
   }
 
   return { variants: selected, warnings };
 };
 
-const collectFilesRecursively = async (directory: string): Promise<string[]> => {
+export const collectFilesRecursively = async (directory: string): Promise<string[]> => {
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const files: string[] = [];
 
@@ -312,7 +367,11 @@ const collectFilesRecursively = async (directory: string): Promise<string[]> => 
   return files;
 };
 
-const buildProcessingPercent = (variantIndex: number, totalVariants: number, percentWithinVariant: number) => {
+export const buildProcessingPercent = (
+  variantIndex: number,
+  totalVariants: number,
+  percentWithinVariant: number,
+) => {
   if (totalVariants === 0) {
     return Math.min(PROCESSING_PERCENT_SHARE, percentWithinVariant);
   }
@@ -328,7 +387,8 @@ const encodeVariant = async (
   metadata: VideoMetadata,
   variantIndex: number,
   totalVariants: number,
-  emit: ProgressEmitter
+  emit: ProgressEmitter,
+  signal?: AbortSignal,
 ): Promise<VariantManifestInfo> => {
   const variantDir = path.join(outputDir, profile.id);
   await fs.mkdir(variantDir, { recursive: true });
@@ -365,7 +425,7 @@ const encodeVariant = async (
       status: "processing",
       stage: `Encoding ${profile.label}`,
       percent: overallPercent,
-      message: details.join(" • ")
+      message: details.join(" • "),
     });
   };
 
@@ -426,15 +486,16 @@ const encodeVariant = async (
       "pipe:1",
       "-f",
       "hls",
-      playlistPath
+      playlistPath,
     ];
 
     const ff = execa(ffmpegPath, args, {
       stdout: "pipe",
-      stderr: "pipe"
+      stderr: "pipe",
+      cancelSignal: signal,
     });
 
-    ff.stdout?.on("data", chunk => {
+    ff.stdout?.on("data", (chunk) => {
       progressBuffer += chunk.toString();
       let newlineIndex = progressBuffer.indexOf("\n");
 
@@ -465,7 +526,7 @@ const encodeVariant = async (
       }
     });
 
-    ff.stderr?.on("data", chunk => {
+    ff.stderr?.on("data", (chunk) => {
       const message = chunk.toString();
       if (message.toLowerCase().includes("error")) {
         console.error(`ffmpeg error (${profile.label}):`, message);
@@ -475,11 +536,15 @@ const encodeVariant = async (
     ff.then(() => {
       sendProgress(100, "completed");
       resolve();
-    }).catch(error => {
+    }).catch((error) => {
+      if (signal?.aborted) {
+        reject(new JobCanceledError());
+        return;
+      }
       reject(
         new Error(
-          `FFmpeg failed for ${profile.label}: ${error instanceof Error ? error.message : String(error)}`
-        )
+          `FFmpeg failed for ${profile.label}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
       );
     });
   });
@@ -488,14 +553,14 @@ const encodeVariant = async (
   return {
     profile,
     playlistRelativePath: path.relative(outputDir, playlistPath).replace(/\\/g, "/"),
-    width
+    width,
   };
 };
 
-const createMasterManifest = async (
+export const createMasterManifest = async (
   outputDir: string,
   variantInfos: VariantManifestInfo[],
-  metadata: VideoMetadata
+  metadata: VideoMetadata,
 ) => {
   const manifestPath = path.join(outputDir, "master.m3u8");
   const lines: string[] = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-INDEPENDENT-SEGMENTS"];
@@ -528,56 +593,79 @@ const createMasterManifest = async (
   return manifestPath;
 };
 
-const convertToHls = async (
+// Exported for integration tests; production callers go through processVideoJob.
+export const convertToHls = async (
   inputFile: string,
   requestedRenditions: string[] | undefined,
-  emit: ProgressEmitter
+  emit: ProgressEmitter,
+  signal?: AbortSignal,
 ): Promise<ConversionResult> => {
   await prepareBinaries();
-  const outputDir = await fs.mkdtemp(path.join(tmpdir(), "mkp-hls-"));
-  const metadata = await probeVideoMetadata(inputFile);
-  const { variants, warnings } = determineVariantProfiles(metadata, requestedRenditions);
-  const conversionWarnings = new Set<string>(warnings);
+  const outputDir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-hls-"));
+  try {
+    const metadata = await probeVideoMetadata(inputFile, signal);
+    const { variants, warnings } = determineVariantProfiles(metadata, requestedRenditions);
+    const conversionWarnings = new Set<string>(warnings);
 
-  if (metadata.durationMs === null) {
-    conversionWarnings.add("Video duration could not be determined; progress estimates may be approximate.");
-  }
+    if (metadata.durationMs === null) {
+      conversionWarnings.add(
+        "Video duration could not be determined; progress estimates may be approximate.",
+      );
+    }
 
-  emit({
-    status: "processing",
-    stage: "Converting to HLS",
-    percent: 0,
-    message: `Preparing ${variants.length} rendition${variants.length === 1 ? "" : "s"}`
-  });
-
-  conversionWarnings.forEach(warning =>
     emit({
       status: "processing",
       stage: "Converting to HLS",
       percent: 0,
-      message: warning
-    })
-  );
+      message: `Preparing ${variants.length} rendition${variants.length === 1 ? "" : "s"}`,
+    });
 
-  const variantInfos: VariantManifestInfo[] = [];
+    conversionWarnings.forEach((warning) =>
+      emit({
+        status: "processing",
+        stage: "Converting to HLS",
+        percent: 0,
+        message: warning,
+      }),
+    );
 
-  for (let index = 0; index < variants.length; index += 1) {
-    const profile = variants[index];
-    const info = await encodeVariant(inputFile, outputDir, profile, metadata, index, variants.length, emit);
-    variantInfos.push(info);
+    const variantInfos: VariantManifestInfo[] = [];
+
+    for (let index = 0; index < variants.length; index += 1) {
+      if (signal?.aborted) {
+        throw new JobCanceledError();
+      }
+      const profile = variants[index];
+      const info = await encodeVariant(
+        inputFile,
+        outputDir,
+        profile,
+        metadata,
+        index,
+        variants.length,
+        emit,
+        signal,
+      );
+      variantInfos.push(info);
+    }
+
+    emit({
+      status: "processing",
+      stage: "Converting to HLS",
+      percent: PROCESSING_PERCENT_SHARE,
+      message: "Packaging HLS manifests",
+    });
+
+    const manifestPath = await createMasterManifest(outputDir, variantInfos, metadata);
+    const files = await collectFilesRecursively(outputDir);
+
+    return { outputDir, manifestPath, files, warnings: Array.from(conversionWarnings) };
+  } catch (error) {
+    // Encoding failed (or was canceled) before the caller took ownership of
+    // the temp directory — clean it up here so failed jobs don't leak files.
+    await fs.rm(outputDir, { recursive: true, force: true });
+    throw error;
   }
-
-  emit({
-    status: "processing",
-    stage: "Converting to HLS",
-    percent: PROCESSING_PERCENT_SHARE,
-    message: "Packaging HLS manifests"
-  });
-
-  const manifestPath = await createMasterManifest(outputDir, variantInfos, metadata);
-  const files = await collectFilesRecursively(outputDir);
-
-  return { outputDir, manifestPath, files, warnings: Array.from(conversionWarnings) };
 };
 
 const uploadArtifacts = async (
@@ -587,18 +675,69 @@ const uploadArtifacts = async (
   baseDir: string,
   manifestPath: string,
   files: string[],
-  onProgress: (index: number, total: number, objectKey: string) => void
+  onProgress: (index: number, total: number, objectKey: string) => void,
+  signal?: AbortSignal,
 ) => {
   const total = files.length;
   const normalized = sanitizeObjectKey(baseKey).replace(/\/$/, "");
 
-  for (let index = 0; index < files.length; index += 1) {
-    const file = files[index];
-    const relative = path.relative(baseDir, file).replace(/\\/g, "/");
+  const entries = files.map((filePath) => {
+    const relative = path.relative(baseDir, filePath).replace(/\\/g, "/");
     const objectKey = normalized ? `${normalized}/${relative}` : relative;
+    return { filePath, objectKey };
+  });
 
-    await client.putObject(bucket, objectKey, createReadStream(file));
-    onProgress(index + 1, total, objectKey);
+  if (entries.length > 0) {
+    const maxWorkers = Math.min(getUploadConcurrency(), entries.length);
+    let cursor = 0;
+    let completed = 0;
+    let aborted = false;
+    const activeStreams = new Set<ReturnType<typeof createReadStream>>();
+    // Destroying the source stream fails the in-flight putObject immediately,
+    // so cancel-current does not wait for slow uploads to finish.
+    const abortInFlight = () => {
+      aborted = true;
+      for (const stream of activeStreams) {
+        stream.destroy();
+      }
+    };
+    signal?.addEventListener("abort", abortInFlight, { once: true });
+
+    const worker = async () => {
+      while (!aborted && !signal?.aborted && cursor < entries.length) {
+        const nextIndex = cursor;
+        cursor += 1;
+        const { filePath, objectKey } = entries[nextIndex];
+        const stream = createReadStream(filePath);
+        activeStreams.add(stream);
+        try {
+          await client.putObject(bucket, objectKey, stream);
+        } catch (error) {
+          // Stop sibling workers from pulling more entries once one fails.
+          aborted = true;
+          throw error;
+        } finally {
+          activeStreams.delete(stream);
+          stream.destroy();
+        }
+        completed += 1;
+        onProgress(completed, total, objectKey);
+      }
+    };
+
+    try {
+      await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
+    } catch (error) {
+      if (signal?.aborted) {
+        throw new JobCanceledError();
+      }
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abortInFlight);
+    }
+    if (signal?.aborted) {
+      throw new JobCanceledError();
+    }
   }
 
   const manifestRelative = path.relative(baseDir, manifestPath).replace(/\\/g, "/");
@@ -607,12 +746,47 @@ const uploadArtifacts = async (
   return manifestObjectKey;
 };
 
+const copyArtifactsToFolder = async (
+  baseDir: string,
+  manifestPath: string,
+  files: string[],
+  baseKey: string,
+  destinationDir: string,
+  onProgress: (index: number, total: number, objectKey: string) => void,
+  signal?: AbortSignal,
+) => {
+  const total = files.length;
+  // baseKey comes from deriveObjectKey — already slugified and stripped of
+  // dot segments, so it is safe to join into a filesystem path.
+  const normalized = sanitizeObjectKey(baseKey).replace(/\/$/, "");
+
+  let completed = 0;
+  for (const filePath of files) {
+    if (signal?.aborted) {
+      throw new JobCanceledError();
+    }
+    const relative = path.relative(baseDir, filePath).replace(/\\/g, "/");
+    const objectKey = normalized ? `${normalized}/${relative}` : relative;
+    const target = path.join(destinationDir, normalized, relative);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.copyFile(filePath, target);
+    completed += 1;
+    onProgress(completed, total, objectKey);
+  }
+
+  const manifestRelative = path.relative(baseDir, manifestPath).replace(/\\/g, "/");
+  return normalized ? `${normalized}/${manifestRelative}` : manifestRelative;
+};
+
 export const processVideoJob = async (
   payload: VideoJobPayload,
-  emit: ProgressEmitter
+  emit: ProgressEmitter,
+  signal?: AbortSignal,
 ): Promise<VideoJobResult> => {
   const { filePath, objectKey } = payload;
-  const bucket = process.env.S3_BUCKET_NAME ?? "";
+  const destination = payload.destination ?? { type: "s3" as const };
+  const isLocal = destination.type === "local";
+  const bucket = isLocal ? "" : getActiveBucketName();
 
   if (!filePath) {
     throw new Error("Video file path is required.");
@@ -621,53 +795,79 @@ export const processVideoJob = async (
     throw new Error("S3 object key is required.");
   }
 
-  await ensureBucket(bucket);
-  const s3Client = getMinioClient();
+  let s3Client: Client | null = null;
+  if (!isLocal) {
+    await ensureBucket(bucket);
+    s3Client = getMinioClient();
+  }
 
   let conversion: ConversionResult | null = null;
   try {
-    conversion = await convertToHls(filePath, payload.renditions, emit);
+    conversion = await convertToHls(filePath, payload.renditions, emit, signal);
+
+    if (signal?.aborted) {
+      throw new JobCanceledError();
+    }
 
     emit({
       status: "uploading",
-      stage: "Uploading to S3",
+      stage: isLocal ? "Copying to folder" : "Uploading to S3",
       percent: PROCESSING_PERCENT_SHARE + 5,
-      message: "Starting upload"
+      message: isLocal ? "Starting copy" : "Starting upload",
     });
 
-    const manifestObjectKey = await uploadArtifacts(
-      s3Client,
-      bucket,
-      objectKey,
-      conversion.outputDir,
-      conversion.manifestPath,
-      conversion.files,
-      (index, total, currentObject) => {
-        const uploadPercent =
-          PROCESSING_PERCENT_SHARE + 5 + (index / Math.max(total, 1)) * (100 - (PROCESSING_PERCENT_SHARE + 5));
-        emit({
-          status: "uploading",
-          stage: "Uploading to S3",
-          percent: Math.min(uploadPercent, 100),
-          message: `(${index}/${total}) ${currentObject}`
-        });
-      }
-    );
+    const reportProgress = (index: number, total: number, currentObject: string) => {
+      const transferPercent =
+        PROCESSING_PERCENT_SHARE +
+        5 +
+        (index / Math.max(total, 1)) * (100 - (PROCESSING_PERCENT_SHARE + 5));
+      emit({
+        status: "uploading",
+        stage: isLocal ? "Copying to folder" : "Uploading to S3",
+        percent: Math.min(transferPercent, 100),
+        message: `(${index}/${total}) ${currentObject}`,
+      });
+    };
+
+    const manifestObjectKey = isLocal
+      ? await copyArtifactsToFolder(
+          conversion.outputDir,
+          conversion.manifestPath,
+          conversion.files,
+          objectKey,
+          destination.directory,
+          reportProgress,
+          signal,
+        )
+      : await uploadArtifacts(
+          s3Client as Client,
+          bucket,
+          objectKey,
+          conversion.outputDir,
+          conversion.manifestPath,
+          conversion.files,
+          reportProgress,
+          signal,
+        );
 
     emit({
       status: "completed",
       stage: "Completed",
       percent: 100,
-      message: "Upload finished"
+      message: isLocal ? "Files saved" : "Upload finished",
     });
 
-    const manifestUrl = buildPublicUrl(manifestObjectKey) ?? manifestObjectKey;
+    const manifestUrl = isLocal
+      ? path.join(destination.directory, manifestObjectKey)
+      : (buildPublicUrl(manifestObjectKey) ?? manifestObjectKey);
 
     return {
       success: true,
       manifestUrl,
-      details: `Uploaded ${conversion.files.length} files`,
-      warnings: conversion.warnings
+      details: isLocal
+        ? `Saved ${conversion.files.length} files to ${destination.directory}`
+        : `Uploaded ${conversion.files.length} files`,
+      warnings: conversion.warnings,
     };
   } finally {
     if (conversion) {

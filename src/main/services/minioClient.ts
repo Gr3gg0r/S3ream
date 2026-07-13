@@ -1,13 +1,33 @@
 import { Client } from "minio";
+import type { ResolvedS3Settings } from "./settingsService";
 
-const resolveBoolean = (value: string | undefined, fallback = false) => {
+/**
+ * Runtime configuration override, applied when the user saves connection
+ * settings in the app. Takes precedence over environment variables for any
+ * non-empty field; `.env` remains the fallback/bootstrap.
+ */
+let configOverride: ResolvedS3Settings | null = null;
+
+export const configureS3 = (settings: ResolvedS3Settings | null) => {
+  configOverride = settings;
+  cachedClient = null;
+};
+
+const resolveValue = (overrideValue: string | undefined, envValue: string | undefined) => {
+  if (overrideValue && overrideValue.length > 0) {
+    return overrideValue;
+  }
+  return envValue ?? "";
+};
+
+export const resolveBoolean = (value: string | undefined, fallback = false) => {
   if (value === undefined) {
     return fallback;
   }
   return ["true", "1", "yes"].includes(value.toLowerCase());
 };
 
-const parseEndpoint = (rawEndpoint: string | undefined) => {
+export const parseEndpoint = (rawEndpoint: string | undefined) => {
   const fallback = "http://localhost:9000";
   const value = rawEndpoint && rawEndpoint.length > 0 ? rawEndpoint : fallback;
   const normalized = value.includes("://") ? value : `https://${value}`;
@@ -25,16 +45,20 @@ const parseEndpoint = (rawEndpoint: string | undefined) => {
   return {
     endPoint: url.hostname,
     port,
-    useSSL
+    useSSL,
   };
 };
 
 const createClient = () => {
-  const accessKey = process.env.S3_ACCESS_KEY_ID ?? "";
-  const secretKey = process.env.S3_SECRET_ACCESS_KEY ?? "";
-  const region = process.env.S3_REGION;
-  const pathStyle = resolveBoolean(process.env.S3_USE_PATH_STYLE_ENDPOINT, true);
-  const { endPoint, port, useSSL } = parseEndpoint(process.env.S3_ENDPOINT_URL);
+  const accessKey = resolveValue(configOverride?.accessKeyId, process.env.S3_ACCESS_KEY_ID);
+  const secretKey = resolveValue(configOverride?.secretAccessKey, process.env.S3_SECRET_ACCESS_KEY);
+  const region = resolveValue(configOverride?.region, process.env.S3_REGION) || undefined;
+  const pathStyle = configOverride
+    ? configOverride.pathStyle
+    : resolveBoolean(process.env.S3_USE_PATH_STYLE_ENDPOINT, true);
+  const { endPoint, port, useSSL } = parseEndpoint(
+    resolveValue(configOverride?.endpointUrl, process.env.S3_ENDPOINT_URL) || undefined,
+  );
 
   if (!accessKey || !secretKey) {
     throw new Error("Missing S3 credentials. Set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.");
@@ -47,9 +71,13 @@ const createClient = () => {
     accessKey,
     secretKey,
     useSSL,
-    pathStyle
+    pathStyle,
   });
 };
+
+/** Bucket name from saved settings, falling back to the environment. */
+export const getActiveBucketName = () =>
+  resolveValue(configOverride?.bucketName, process.env.S3_BUCKET_NAME);
 
 let cachedClient: Client | null = null;
 
@@ -67,13 +95,15 @@ export const ensureBucket = async (bucket: string) => {
   const client = getMinioClient();
   const exists = await client.bucketExists(bucket);
   if (!exists) {
-    await client.makeBucket(bucket, process.env.S3_REGION ?? "");
+    await client.makeBucket(bucket, resolveValue(configOverride?.region, process.env.S3_REGION));
   }
   await ensurePublicReadPolicy(client, bucket);
 };
 
 export const buildPublicUrl = (objectKey: string) => {
-  const base = (process.env.S3_VIEW_ENDPOINT ?? process.env.S3_BUCKET_URL ?? "").replace(/\/$/, "");
+  const viewEndpoint = resolveValue(configOverride?.viewEndpoint, process.env.S3_VIEW_ENDPOINT);
+  const bucketUrl = resolveValue(configOverride?.bucketUrl, process.env.S3_BUCKET_URL);
+  const base = (viewEndpoint || bucketUrl).replace(/\/$/, "");
   if (!base) {
     return null;
   }
@@ -96,9 +126,9 @@ const readPolicyDocument = (bucket: string) =>
         Effect: "Allow",
         Principal: { AWS: ["*"] },
         Action: ["s3:GetObject"],
-        Resource: [`arn:aws:s3:::${bucket}/*`]
-      }
-    ]
+        Resource: [`arn:aws:s3:::${bucket}/*`],
+      },
+    ],
   });
 
 const ensurePublicReadPolicy = async (client: Client, bucket: string) => {

@@ -1,8 +1,7 @@
 import path from "node:path";
-import { EventEmitter } from "node:events";
 import { BrowserWindow, powerSaveBlocker } from "electron";
 import { randomUUID } from "node:crypto";
-import { processVideoJob } from "./videoPipeline";
+import { JobCanceledError, processVideoJob } from "./videoPipeline";
 import type {
   JobLogEntry,
   JobState,
@@ -12,16 +11,22 @@ import type {
   QueueUpdate,
   SingleProcessRequest,
   SingleProcessResult,
-  SingleProcessProgress
+  SingleProcessProgress,
 } from "@shared/ipc";
-import { sanitizeObjectKey } from "./minioClient";
+import { SUPPORTED_VIDEO_EXTENSIONS } from "@shared/ipc";
 import { historyService } from "./historyService";
 
-const SUPPORTED_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".avi", ".m4v", ".webm"]);
+const SUPPORTED_EXTENSIONS = new Set(SUPPORTED_VIDEO_EXTENSIONS);
 
-const normalizePrefix = (prefix: string) => prefix.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+export const normalizePrefix = (prefix: string) =>
+  prefix
+    .trim()
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    .join("/");
 
-const slugify = (value: string) =>
+export const slugify = (value: string) =>
   value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -31,7 +36,7 @@ const slugify = (value: string) =>
     .replace(/-+/g, "-")
     .toLowerCase();
 
-const deriveObjectKey = (basePrefix: string, filePath: string, existing: Set<string>) => {
+export const deriveObjectKey = (basePrefix: string, filePath: string, existing: Set<string>) => {
   const { name } = path.parse(filePath);
   const segment = slugify(name) || "video";
   const prefix = normalizePrefix(basePrefix);
@@ -59,7 +64,7 @@ export interface InternalJob extends JobState {
 
 type QueueStatus = "idle" | "running" | "paused";
 
-export class JobManager extends EventEmitter {
+export class JobManager {
   private jobs: Map<string, InternalJob> = new Map();
   private order: string[] = [];
   private queueStatus: QueueStatus = "idle";
@@ -67,8 +72,12 @@ export class JobManager extends EventEmitter {
   private activeCount = 0;
   private paused = false;
   private powerBlockerId: number | null = null;
+  private powerBlockerDepth = 0;
+  private batchBlockerHeld = false;
   private window: BrowserWindow | null = null;
   private pendingWarnings: string[] = [];
+  private abortControllers: Map<string, AbortController> = new Map();
+  private inFlightSingles = new Set<string>();
 
   setWindow(window: BrowserWindow | null) {
     this.window = window;
@@ -107,8 +116,8 @@ export class JobManager extends EventEmitter {
 
     const existingKeys = new Set(
       Array.from(this.jobs.values())
-        .map(job => job.objectKey)
-        .filter(Boolean)
+        .map((job) => job.objectKey)
+        .filter(Boolean),
     );
 
     for (const { filePath } of request.files) {
@@ -137,7 +146,7 @@ export class JobManager extends EventEmitter {
           queuedAt,
           startedAt: null,
           completedAt: queuedAt,
-          skipReason: "unsupported-file"
+          skipReason: "unsupported-file",
         };
         this.addJob(job);
         jobIds.push(jobId);
@@ -157,7 +166,7 @@ export class JobManager extends EventEmitter {
           error: job.message ?? null,
           queuedAt,
           startedAt: null,
-          completedAt: queuedAt
+          completedAt: queuedAt,
         });
         continue;
       }
@@ -185,7 +194,7 @@ export class JobManager extends EventEmitter {
           queuedAt,
           startedAt: null,
           completedAt: queuedAt,
-          skipReason: "duplicate"
+          skipReason: "duplicate",
         };
         this.addJob(job);
         jobIds.push(jobId);
@@ -205,7 +214,7 @@ export class JobManager extends EventEmitter {
           error: job.message ?? null,
           queuedAt,
           startedAt: null,
-          completedAt: job.completedAt ?? queuedAt
+          completedAt: job.completedAt ?? queuedAt,
         });
         continue;
       }
@@ -231,7 +240,7 @@ export class JobManager extends EventEmitter {
         queueMode: request.mode,
         queuedAt,
         startedAt: null,
-        completedAt: null
+        completedAt: null,
       };
       this.addJob(job);
       jobIds.push(jobId);
@@ -249,18 +258,18 @@ export class JobManager extends EventEmitter {
         error: null,
         queuedAt,
         startedAt: null,
-        completedAt: null
+        completedAt: null,
       });
     }
 
     this.emitUpdate();
-    this.drainQueue();
+    void this.drainQueue();
     return { jobIds, skipped };
   }
 
   async processSingle(
     request: SingleProcessRequest,
-    emitProgress?: (progress: SingleProcessProgress) => void
+    emitProgress?: (progress: SingleProcessProgress) => void,
   ): Promise<SingleProcessResult> {
     const { filePath, basePrefix, renditions } = request;
     if (!filePath) {
@@ -274,11 +283,19 @@ export class JobManager extends EventEmitter {
       throw new Error("Object path prefix is required.");
     }
 
+    // Two overlapping single conversions of the same file and prefix would
+    // derive the same object key and clobber each other's output.
+    const dedupeKey = `${normalizedPrefix}\n${filePath}`;
+    if (this.inFlightSingles.has(dedupeKey)) {
+      throw new Error("This video is already being converted to the same destination.");
+    }
+    this.inFlightSingles.add(dedupeKey);
+
     const queuedAt = Date.now();
     const existingKeys = new Set(
       Array.from(this.jobs.values())
-        .map(job => job.objectKey)
-        .filter(Boolean)
+        .map((job) => job.objectKey)
+        .filter(Boolean),
     );
     const objectKey = deriveObjectKey(normalizedPrefix, filePath, existingKeys);
     const jobId = randomUUID();
@@ -298,7 +315,7 @@ export class JobManager extends EventEmitter {
       error: null,
       queuedAt,
       startedAt: queuedAt,
-      completedAt: null
+      completedAt: null,
     });
 
     let lastStatus: JobStatus = "processing";
@@ -312,17 +329,19 @@ export class JobManager extends EventEmitter {
       stage: "Preparing",
       percent: 0,
       message: "Preparing single-file conversion",
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
+    this.acquirePowerSaveBlocker();
     try {
       const result = await processVideoJob(
         {
           filePath,
           objectKey,
-          renditions
+          renditions,
+          destination: request.destination,
         },
-        progress => {
+        (progress) => {
           lastStatus = progress.status as JobStatus;
           historyService.logEntry({
             id: randomUUID(),
@@ -331,7 +350,7 @@ export class JobManager extends EventEmitter {
             stage: progress.stage,
             message: progress.message,
             percent: progress.percent ?? undefined,
-            status: lastStatus
+            status: lastStatus,
           });
           if (progress.percent !== undefined && progress.percent !== null) {
             lastPercent = progress.percent;
@@ -344,9 +363,9 @@ export class JobManager extends EventEmitter {
             stage: progress.stage,
             percent: progress.percent ?? lastPercent,
             message: progress.message,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
-        }
+        },
       );
 
       historyService.upsertJob({
@@ -363,7 +382,7 @@ export class JobManager extends EventEmitter {
         error: result.error ?? null,
         queuedAt,
         startedAt: queuedAt,
-        completedAt: Date.now()
+        completedAt: Date.now(),
       });
 
       if (!result.success) {
@@ -375,7 +394,7 @@ export class JobManager extends EventEmitter {
           stage: "Failed",
           percent: lastPercent,
           message: result.error ?? "Processing failed",
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
         return {
           success: false,
@@ -384,7 +403,7 @@ export class JobManager extends EventEmitter {
           details: result.details,
           error: result.error ?? "Processing failed",
           jobId,
-          objectKey
+          objectKey,
         };
       }
 
@@ -396,7 +415,7 @@ export class JobManager extends EventEmitter {
         stage: "Completed",
         percent: 100,
         message: result.details ?? "Upload finished",
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return {
@@ -406,7 +425,7 @@ export class JobManager extends EventEmitter {
         details: result.details,
         error: undefined,
         jobId,
-        objectKey
+        objectKey,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -417,7 +436,7 @@ export class JobManager extends EventEmitter {
         stage: "Failed",
         message,
         percent: undefined,
-        status: "failed"
+        status: "failed",
       });
       historyService.upsertJob({
         id: jobId,
@@ -433,7 +452,7 @@ export class JobManager extends EventEmitter {
         error: message,
         queuedAt,
         startedAt: queuedAt,
-        completedAt: Date.now()
+        completedAt: Date.now(),
       });
       emitProgress?.({
         jobId,
@@ -443,9 +462,12 @@ export class JobManager extends EventEmitter {
         stage: "Failed",
         percent: lastPercent,
         message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
       throw error;
+    } finally {
+      this.inFlightSingles.delete(dedupeKey);
+      this.releasePowerSaveBlocker();
     }
   }
 
@@ -458,7 +480,7 @@ export class JobManager extends EventEmitter {
       case "resume":
         this.paused = false;
         this.queueStatus = "running";
-        this.drainQueue();
+        void this.drainQueue();
         break;
       case "cancel-remaining":
         this.cancelRemaining();
@@ -476,10 +498,13 @@ export class JobManager extends EventEmitter {
   }
 
   setConcurrency(limit: number) {
+    if (!Number.isFinite(limit)) {
+      return;
+    }
     const normalized = Math.max(1, Math.min(16, Math.floor(limit)));
     this.concurrency = normalized;
     if (!this.paused) {
-      this.drainQueue();
+      void this.drainQueue();
     }
     this.emitUpdate();
   }
@@ -500,11 +525,12 @@ export class JobManager extends EventEmitter {
   private cancelCurrent() {
     for (const job of this.jobs.values()) {
       if (job.status === "processing" || job.status === "uploading") {
-        job.status = "failed";
-        job.stage = "Failed";
+        job.status = "canceled";
+        job.stage = "Canceled";
         job.percent = null;
-        job.message = "Active job cancel not supported yet";
-        job.error = job.message;
+        job.message = "Canceling…";
+        this.abortControllers.get(job.id)?.abort();
+        this.emitLog(job, "Cancel requested by user");
         break;
       }
     }
@@ -536,15 +562,21 @@ export class JobManager extends EventEmitter {
       if (!nextJob) {
         if (this.activeCount === 0) {
           this.queueStatus = "idle";
-          this.stopPowerSaveBlocker();
+          if (this.batchBlockerHeld) {
+            this.batchBlockerHeld = false;
+            this.releasePowerSaveBlocker();
+          }
         }
         this.emitUpdate();
         break;
       }
       this.activeCount += 1;
       this.queueStatus = "running";
-      this.startPowerSaveBlocker();
-      this.runJob(nextJob).catch(error => {
+      if (!this.batchBlockerHeld) {
+        this.batchBlockerHeld = true;
+        this.acquirePowerSaveBlocker();
+      }
+      this.runJob(nextJob).catch((error) => {
         console.error("Job execution failed", error);
       });
     }
@@ -565,69 +597,16 @@ export class JobManager extends EventEmitter {
   }
 
   private async runJob(job: InternalJob) {
-    job.status = "processing";
-    job.stage = "Converting";
-    job.percent = 0;
-    job.startedAt = Date.now();
-    this.emitUpdate();
-    this.emitLog(job, "Queued job start");
-    historyService.upsertJob({
-      id: job.id,
-      filePath: job.filePath,
-      fileName: job.fileName,
-      fileHash: null,
-      basePrefix: job.basePrefix,
-      renditions: job.renditions,
-      queueMode: job.queueMode,
-      status: job.status,
-      manifestUrl: job.manifestUrl ?? null,
-      warnings: job.warnings ?? [],
-      error: job.error ?? null,
-      queuedAt: job.queuedAt,
-      startedAt: job.startedAt,
-      completedAt: null
-    });
+    const controller = new AbortController();
+    this.abortControllers.set(job.id, controller);
 
     try {
-      const result = await processVideoJob(
-        {
-          filePath: job.filePath,
-          objectKey: job.objectKey,
-          renditions: job.renditions
-        },
-        progress => {
-          job.status = progress.status as JobStatus;
-          job.stage = progress.stage;
-          job.percent = progress.percent ?? job.percent;
-          job.message = progress.message;
-          this.emitUpdate();
-          this.emitLog(job, progress.message ?? progress.stage, progress.percent ?? undefined);
-        }
-      );
-
-      job.manifestUrl = result.manifestUrl ?? job.manifestUrl;
-      job.warnings = result.warnings ?? [];
-      if (result.success) {
-        job.status = "completed";
-        job.stage = "Completed";
-        job.percent = 100;
-        job.message = result.details ?? "Completed";
-      } else {
-        job.status = "failed";
-        job.stage = "Failed";
-        job.message = result.error ?? "Processing failed";
-        job.error = result.error ?? job.error ?? "Processing failed";
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      job.status = "failed";
-      job.stage = "Failed";
-      job.percent = null;
-      job.message = message;
-      job.error = message;
-      this.emitLog(job, message);
-    } finally {
-      job.completedAt = Date.now();
+      job.status = "processing";
+      job.stage = "Converting";
+      job.percent = 0;
+      job.startedAt = Date.now();
+      this.emitUpdate();
+      this.emitLog(job, "Queued job start");
       historyService.upsertJob({
         id: job.id,
         filePath: job.filePath,
@@ -642,15 +621,96 @@ export class JobManager extends EventEmitter {
         error: job.error ?? null,
         queuedAt: job.queuedAt,
         startedAt: job.startedAt,
-        completedAt: job.completedAt
+        completedAt: null,
       });
 
+      const result = await processVideoJob(
+        {
+          filePath: job.filePath,
+          objectKey: job.objectKey,
+          renditions: job.renditions,
+        },
+        (progress) => {
+          if (job.status === "canceled") {
+            return;
+          }
+          job.status = progress.status as JobStatus;
+          job.stage = progress.stage;
+          job.percent = progress.percent ?? job.percent;
+          job.message = progress.message;
+          this.emitUpdate();
+          this.emitLog(job, progress.message ?? progress.stage, progress.percent ?? undefined);
+        },
+        controller.signal,
+      );
+
+      // cancelCurrent() may have flipped the status while the pipeline was
+      // running; the cast defeats control-flow narrowing, which cannot see
+      // mutations made during the await.
+      if ((job.status as JobStatus) !== "canceled") {
+        job.manifestUrl = result.manifestUrl ?? job.manifestUrl;
+        job.warnings = result.warnings ?? [];
+        if (result.success) {
+          job.status = "completed";
+          job.stage = "Completed";
+          job.percent = 100;
+          job.message = result.details ?? "Completed";
+        } else {
+          job.status = "failed";
+          job.stage = "Failed";
+          job.message = result.error ?? "Processing failed";
+          job.error = result.error ?? job.error ?? "Processing failed";
+        }
+      }
+    } catch (error) {
+      if (error instanceof JobCanceledError || job.status === "canceled") {
+        job.status = "canceled";
+        job.stage = "Canceled";
+        job.percent = null;
+        job.message = "Canceled by user";
+        job.error = undefined;
+        this.emitLog(job, "Job canceled by user");
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        job.status = "failed";
+        job.stage = "Failed";
+        job.percent = null;
+        job.message = message;
+        job.error = message;
+        this.emitLog(job, message);
+      }
+    } finally {
+      this.abortControllers.delete(job.id);
+      job.completedAt = Date.now();
       this.activeCount -= 1;
       this.emitUpdate();
       if (!this.paused) {
-        this.drainQueue();
-      } else if (this.activeCount === 0) {
-        this.stopPowerSaveBlocker();
+        void this.drainQueue();
+      } else if (this.activeCount === 0 && this.batchBlockerHeld) {
+        this.batchBlockerHeld = false;
+        this.releasePowerSaveBlocker();
+      }
+      // Persist after the queue bookkeeping recovers: if this write throws
+      // (disk full, unwritable userData) the queue must still advance.
+      try {
+        historyService.upsertJob({
+          id: job.id,
+          filePath: job.filePath,
+          fileName: job.fileName,
+          fileHash: null,
+          basePrefix: job.basePrefix,
+          renditions: job.renditions,
+          queueMode: job.queueMode,
+          status: job.status,
+          manifestUrl: job.manifestUrl ?? null,
+          warnings: job.warnings ?? [],
+          error: job.error ?? null,
+          queuedAt: job.queuedAt,
+          startedAt: job.startedAt,
+          completedAt: job.completedAt,
+        });
+      } catch (persistError) {
+        console.error("Failed to persist job state", persistError);
       }
     }
   }
@@ -662,9 +722,11 @@ export class JobManager extends EventEmitter {
       jobs: this.getJobStates(),
       totals: this.computeTotals(),
       overallPercent: this.computeOverallPercent(),
-      warnings: this.pendingWarnings
+      warnings: this.pendingWarnings,
     };
-    this.window?.webContents.send("jobs:update", update);
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send("jobs:update", update);
+    }
     this.pendingWarnings = [];
   }
 
@@ -676,9 +738,11 @@ export class JobManager extends EventEmitter {
       stage: job.stage,
       message,
       percent,
-      status: job.status
+      status: job.status,
     };
-    this.window?.webContents.send("jobs:log", entry);
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send("jobs:log", entry);
+    }
     historyService.logEntry(entry);
   }
 
@@ -693,9 +757,9 @@ export class JobManager extends EventEmitter {
 
   private getJobStates(): JobState[] {
     return this.order
-      .map(jobId => this.jobs.get(jobId))
+      .map((jobId) => this.jobs.get(jobId))
       .filter((job): job is InternalJob => Boolean(job))
-      .map(job => ({
+      .map((job) => ({
         id: job.id,
         filePath: job.filePath,
         fileName: job.fileName,
@@ -706,7 +770,7 @@ export class JobManager extends EventEmitter {
         message: job.message,
         manifestUrl: job.manifestUrl,
         warnings: job.warnings,
-        error: job.error
+        error: job.error,
       }));
   }
 
@@ -719,7 +783,7 @@ export class JobManager extends EventEmitter {
       completed: 0,
       failed: 0,
       skipped: 0,
-      canceled: 0
+      canceled: 0,
     };
 
     for (const job of this.jobs.values()) {
@@ -769,23 +833,27 @@ export class JobManager extends EventEmitter {
     return total / this.jobs.size;
   }
 
-  private startPowerSaveBlocker() {
+  // Refcounted so the batch queue and single-file conversions can hold the
+  // blocker independently without switching each other's hold off.
+  private acquirePowerSaveBlocker() {
+    this.powerBlockerDepth += 1;
     if (this.powerBlockerId === null) {
       this.powerBlockerId = powerSaveBlocker.start("prevent-app-suspension");
     }
   }
 
-  private stopPowerSaveBlocker() {
-    if (this.powerBlockerId !== null && powerSaveBlocker.isStarted(this.powerBlockerId)) {
-      powerSaveBlocker.stop(this.powerBlockerId);
+  private releasePowerSaveBlocker() {
+    if (this.powerBlockerDepth > 0) {
+      this.powerBlockerDepth -= 1;
+    }
+    if (this.powerBlockerDepth === 0 && this.powerBlockerId !== null) {
+      if (powerSaveBlocker.isStarted(this.powerBlockerId)) {
+        powerSaveBlocker.stop(this.powerBlockerId);
+      }
       this.powerBlockerId = null;
     }
   }
 }
 
-export const isVideoFile = (filePath: string) => SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
-
-export const buildObjectKeyForPreview = (basePrefix: string, filePath: string) => {
-  const safeKey = deriveObjectKey(basePrefix, filePath, new Set());
-  return sanitizeObjectKey(safeKey);
-};
+export const isVideoFile = (filePath: string) =>
+  SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());

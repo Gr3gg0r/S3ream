@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     main: {
+      resolve: {
+        alias: {
+          "@shared": resolve(__dirname, "src/shared"),
+        },
+      },
       plugins: [externalizeDepsPlugin()],
       build: {
         outDir: "dist/main",
@@ -15,10 +20,23 @@ export default defineConfig(({ mode }) => {
       },
     },
     preload: {
+      resolve: {
+        alias: {
+          "@shared": resolve(__dirname, "src/shared"),
+        },
+      },
       plugins: [externalizeDepsPlugin()],
       build: {
         outDir: "dist/preload",
         emptyOutDir: true,
+        rollupOptions: {
+          output: {
+            // Sandboxed preloads only execute classic scripts, so the bundle
+            // must stay CJS even though the package is ESM ("type": "module").
+            format: "cjs",
+            entryFileNames: "[name].cjs",
+          },
+        },
       },
     },
     renderer: {
@@ -27,6 +45,7 @@ export default defineConfig(({ mode }) => {
           "@renderer": resolve(__dirname, "src/renderer/src"),
           "@preload": resolve(__dirname, "src/preload"),
           "@main": resolve(__dirname, "src/main"),
+          "@shared": resolve(__dirname, "src/shared"),
         },
       },
       define: {
