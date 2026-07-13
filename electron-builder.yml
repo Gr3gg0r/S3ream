@@ -4,6 +4,7 @@ copyright: Copyright © 2025 Shahfiq Shah
 directories:
   output: release/${version}
   buildResources: build
+afterPack: scripts/prune-platform-binaries.cjs
 files:
   - dist/**/*
   - "!dist/**/*.map"

@@ -24,6 +24,8 @@ Running a server just to convert video to HLS is an unnecessary burden — your 
 - Docker & Docker Compose (for the bundled RustFS stack)
 - FFmpeg (optional locally; the app ships with a bundled binary)
 
+The repo also pins its toolchain with [proto](https://moonrepo.dev/proto) (`.prototools`: Node 22.23.1, pnpm 8.15.4). If you use proto, `proto install` in the repo root gives you the exact versions; otherwise just match the versions above.
+
 ## Getting Started
 
 ```bash

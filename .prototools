@@ -1,0 +1,7 @@
+# Toolchain lock for proto (https://moonrepo.dev/proto).
+# proto also reads package.json (engines.node, packageManager) as a fallback;
+# these pins take precedence so every contributor and shell gets identical bits.
+# Bump deliberately: node tracks the Active LTS line used by CI, pnpm tracks
+# the packageManager field in package.json.
+node = "22.23.1"
+pnpm = "8.15.4"

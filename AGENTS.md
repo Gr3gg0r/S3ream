@@ -25,6 +25,7 @@ The app has three views, switched from the header:
 | Layer              | Technology                                                                       |
 | ------------------ | -------------------------------------------------------------------------------- |
 | Runtime            | Electron 43.1.0 (Node ^20.19.0 or ≥ 22.12.0)                                     |
+| Toolchain Pinning  | proto (`.prototools`: Node 22.23.1, pnpm 8.15.4)                                 |
 | Package Manager    | pnpm 8.15.4                                                                      |
 | Build Tool         | electron-vite 5 (Vite 8 + Rolldown for main/preload/renderer)                    |
 | Renderer Framework | React 19 + TypeScript ~5.9 (TS 7 breaks typescript-eslint — see below)           |
@@ -48,6 +49,7 @@ The app has three views, switched from the header:
 ```
 .
 ├── .github/workflows/ci.yml    # CI: lint, typecheck, tests, build (+ integration vs RustFS)
+├── .prototools                 # proto toolchain lock: Node 22.23.1, pnpm 8.15.4
 ├── build/                      # electron-builder resources: icon.png (1024 master), icon.icns, icon.ico
 ├── docker-compose.yml          # RustFS + Toxiproxy stack for local dev
 ├── docs/screenshots/           # README screenshots (regenerate from the running app when the UI changes)
@@ -62,7 +64,8 @@ The app has three views, switched from the header:
 ├── eslint.config.mjs           # ESLint flat config (TS + React + Prettier)
 ├── prettier.config.cjs
 ├── scripts/
-│   └── bootstrap-toxiproxy.sh  # Configures latency/bandwidth toxics
+│   ├── bootstrap-toxiproxy.sh  # Configures latency/bandwidth toxics
+│   └── prune-platform-binaries.cjs # electron-builder afterPack: strips non-target FFmpeg/FFprobe binaries
 ├── tests/
 │   ├── mocks/electron.ts       # Electron module mock (aliased in vitest.config.ts)
 │   ├── setup.ts                # Per-file isolated userData dir
@@ -331,5 +334,6 @@ The `<html>` tag in `index.html` defaults to `data-theme="s3ream"`, and `useThem
 ## Deployment Notes
 
 - Packaging uses `electron-builder` with configuration in `electron-builder.yml` (`appId: com.s3ream.app`, macOS dmg/zip for arm64+x64, Windows nsis/portable, Linux AppImage/deb). Build with `pnpm run dist` (or `dist:mac` / `dist:win` / `dist:linux`); artifacts are written to `release/${version}/`, which is gitignored.
+- The `@ffmpeg-installer`/`@ffprobe-installer` platform packages carry no `os`/`cpu` constraints, so pnpm installs every variant. They are declared as `optionalDependencies` (electron-builder only bundles declared deps on pnpm 10+), and `scripts/prune-platform-binaries.cjs` (an `afterPack` hook) strips all but the target platform+arch — keep both in place or bundles double in size. When bumping the installer packages, bump the `optionalDependencies` versions to match.
 - `build/` holds the app icons used as `buildResources`: a monochrome play/stream mark matching the app palette — `icon.png` (1024px master, also used for Linux), `icon.icns` (macOS), and `icon.ico` (Windows).
 - CI runs on GitHub Actions (`.github/workflows/ci.yml`): a `check` job (lint, typecheck, unit tests, production build) and an `integration` job that brings up the RustFS Docker stack and runs `pnpm run test:integration`.

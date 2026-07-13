@@ -55,5 +55,21 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // electron-builder hook: Node-run CommonJS, require/exports are mandatory.
+    files: ["scripts/**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        require: "readonly",
+        exports: "writable",
+        module: "writable",
+        __dirname: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   eslintConfigPrettier,
 );
