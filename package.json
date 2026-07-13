@@ -1,6 +1,6 @@
 {
   "name": "s3ream",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Local-first Electron app that converts videos to multi-bitrate HLS and uploads the stream to any S3-compatible storage — no transcoding server required.",
   "private": true,
   "main": "dist/main/index.js",
