@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach binaries to (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-latest
+            dist: dist:mac
+          - platform: Windows
+            os: windows-latest
+            dist: dist:win
+          - platform: Linux
+            os: ubuntu-latest
+            dist: dist:linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and package
+        run: pnpm run ${{ matrix.dist }}
+        env:
+          # No signing identities on CI — build unsigned artifacts.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: |
+            release/${{ steps.version.outputs.version }}/*.dmg
+            release/${{ steps.version.outputs.version }}/*.zip
+            release/${{ steps.version.outputs.version }}/*.exe
+            release/${{ steps.version.outputs.version }}/*.AppImage
+            release/${{ steps.version.outputs.version }}/*.deb
+            release/${{ steps.version.outputs.version }}/*.blockmap
+            release/${{ steps.version.outputs.version }}/latest*.yml
