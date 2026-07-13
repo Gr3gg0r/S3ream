@@ -7,9 +7,9 @@
 import { chmodSync, promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execa } from "execa";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { generateTestVideo } from "./helpers";
 
 describe("processVideoJob with a local destination", () => {
   beforeAll(() => {
@@ -22,25 +22,7 @@ describe("processVideoJob with a local destination", () => {
     const workDir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-local-"));
     try {
       const video = path.join(workDir, "clip.mp4");
-      await execa(ffmpegInstaller.path, [
-        "-hide_banner",
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=duration=2:size=320x240:rate=15",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:duration=2",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        video,
-      ]);
+      await generateTestVideo(video);
 
       const outDir = path.join(workDir, "out");
       await fs.mkdir(outDir, { recursive: true });

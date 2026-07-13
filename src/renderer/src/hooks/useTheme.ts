@@ -7,9 +7,6 @@ const DARK_THEME = "s3reamdark";
 const LIGHT_THEME = "s3ream";
 
 const readStoredPreference = (): ThemePreference => {
-  if (typeof window === "undefined") {
-    return "system";
-  }
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
@@ -20,9 +17,7 @@ const readStoredPreference = (): ThemePreference => {
 const applyTheme = (preference: ThemePreference) => {
   const dark =
     preference === "dark" ||
-    (preference === "system" &&
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches);
+    (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.setAttribute("data-theme", dark ? DARK_THEME : LIGHT_THEME);
 };
 

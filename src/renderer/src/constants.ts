@@ -24,3 +24,10 @@ export const formatBytes = (size: number) => {
   const value = size / Math.pow(1024, exponent);
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[exponent]}`;
 };
+
+export const formatError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+export const pathSeparator = () => (navigator.platform.startsWith("Win") ? "\\" : "/");
+
+export const COPY_FEEDBACK_MS = 2000;

@@ -30,5 +30,3 @@ export const ThemeToggle = ({ preference, setPreference }: ThemeToggleProps) => 
     ))}
   </div>
 );
-
-export default ThemeToggle;

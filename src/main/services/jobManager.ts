@@ -85,10 +85,7 @@ export class JobManager {
 
   private addJob(job: InternalJob) {
     this.jobs.set(job.id, job);
-
-    if (!this.order.includes(job.id)) {
-      this.order.push(job.id);
-    }
+    this.order.push(job.id);
 
     // Keep queueIndex in sync with the insertion order so UI reflects real position.
     this.order.forEach((jobId, index) => {
@@ -98,9 +95,69 @@ export class JobManager {
       }
     });
 
-    if (this.queueStatus === "idle" && !this.paused) {
-      this.queueStatus = job.status === "skipped" ? "idle" : "running";
+    if (this.queueStatus === "idle" && !this.paused && job.status !== "skipped") {
+      this.queueStatus = "running";
     }
+  }
+
+  // Unsupported files and already-processed duplicates never enter the queue;
+  // they are recorded as skipped jobs so the UI and history can show why.
+  private recordSkippedJob(
+    request: QueueRequest,
+    normalizedPrefix: string,
+    filePath: string,
+    queuedAt: number,
+    details: {
+      objectKey: string;
+      message: string;
+      warnings: string[];
+      manifestUrl?: string;
+      skipReason: string;
+      pendingWarning: string;
+    },
+  ): string {
+    const jobId = randomUUID();
+    const job: InternalJob = {
+      id: jobId,
+      filePath,
+      fileName: path.basename(filePath),
+      objectKey: details.objectKey,
+      status: "skipped",
+      stage: "Skipped",
+      percent: null,
+      message: details.message,
+      warnings: details.warnings,
+      error: undefined,
+      manifestUrl: details.manifestUrl,
+      fileSize: 0,
+      queueIndex: this.order.length,
+      renditions: request.renditions,
+      basePrefix: normalizedPrefix,
+      queueMode: request.mode,
+      queuedAt,
+      startedAt: null,
+      completedAt: queuedAt,
+      skipReason: details.skipReason,
+    };
+    this.addJob(job);
+    this.pendingWarnings.push(details.pendingWarning);
+    historyService.upsertJob({
+      id: jobId,
+      filePath: job.filePath,
+      fileName: job.fileName,
+      fileHash: null,
+      basePrefix: normalizedPrefix,
+      renditions: job.renditions,
+      queueMode: request.mode,
+      status: "skipped",
+      manifestUrl: job.manifestUrl ?? null,
+      warnings: job.warnings ?? [],
+      error: job.message ?? null,
+      queuedAt,
+      startedAt: null,
+      completedAt: job.completedAt ?? queuedAt,
+    });
+    return jobId;
   }
 
   async enqueue(request: QueueRequest) {
@@ -125,97 +182,30 @@ export class JobManager {
       const queuedAt = Date.now();
 
       if (!SUPPORTED_EXTENSIONS.has(extension)) {
-        const jobId = randomUUID();
-        const job: InternalJob = {
-          id: jobId,
-          filePath,
-          fileName: path.basename(filePath),
+        const jobId = this.recordSkippedJob(request, normalizedPrefix, filePath, queuedAt, {
           objectKey: "",
-          status: "skipped",
-          stage: "Skipped",
-          percent: null,
           message: "Unsupported file type",
           warnings: [`Skipped unsupported file: ${path.basename(filePath)}`],
-          error: undefined,
-          manifestUrl: undefined,
-          fileSize: 0,
-          queueIndex: this.order.length,
-          renditions: request.renditions,
-          basePrefix: normalizedPrefix,
-          queueMode: request.mode,
-          queuedAt,
-          startedAt: null,
-          completedAt: queuedAt,
           skipReason: "unsupported-file",
-        };
-        this.addJob(job);
-        jobIds.push(jobId);
-        this.pendingWarnings.push(`Skipped ${path.basename(filePath)} (unsupported file type).`);
-        skipped.push({ filePath, reason: "unsupported file type" });
-        historyService.upsertJob({
-          id: jobId,
-          filePath,
-          fileName: job.fileName,
-          fileHash: null,
-          basePrefix: normalizedPrefix,
-          renditions: request.renditions,
-          queueMode: request.mode,
-          status: "skipped",
-          manifestUrl: null,
-          warnings: job.warnings ?? [],
-          error: job.message ?? null,
-          queuedAt,
-          startedAt: null,
-          completedAt: queuedAt,
+          pendingWarning: `Skipped ${path.basename(filePath)} (unsupported file type).`,
         });
+        jobIds.push(jobId);
+        skipped.push({ filePath, reason: "unsupported file type" });
         continue;
       }
 
       const duplicate = historyService.findExisting(filePath, normalizedPrefix);
       if (duplicate) {
-        const jobId = randomUUID();
-        const job: InternalJob = {
-          id: jobId,
-          filePath,
-          fileName: path.basename(filePath),
+        const jobId = this.recordSkippedJob(request, normalizedPrefix, filePath, queuedAt, {
           objectKey: duplicate.manifestUrl ?? "",
-          status: "skipped",
-          stage: "Skipped",
-          percent: null,
           message: `Already processed on ${new Date(duplicate.completedAt).toLocaleString()}`,
           warnings: [`Previously processed: ${duplicate.manifestUrl ?? duplicate.fileName}`],
-          error: undefined,
           manifestUrl: duplicate.manifestUrl ?? undefined,
-          fileSize: 0,
-          queueIndex: this.order.length,
-          renditions: request.renditions,
-          basePrefix: normalizedPrefix,
-          queueMode: request.mode,
-          queuedAt,
-          startedAt: null,
-          completedAt: queuedAt,
           skipReason: "duplicate",
-        };
-        this.addJob(job);
-        jobIds.push(jobId);
-        this.pendingWarnings.push(`Skipped ${path.basename(filePath)} (already processed).`);
-        skipped.push({ filePath, reason: "duplicate" });
-        historyService.upsertJob({
-          id: jobId,
-          filePath: job.filePath,
-          fileName: job.fileName,
-          fileHash: null,
-          basePrefix: normalizedPrefix,
-          renditions: job.renditions,
-          queueMode: request.mode,
-          status: "skipped",
-          manifestUrl: job.manifestUrl ?? null,
-          warnings: job.warnings ?? [],
-          error: job.message ?? null,
-          queuedAt,
-          startedAt: null,
-          completedAt: job.completedAt ?? queuedAt,
+          pendingWarning: `Skipped ${path.basename(filePath)} (already processed).`,
         });
+        jobIds.push(jobId);
+        skipped.push({ filePath, reason: "duplicate" });
         continue;
       }
 
@@ -342,7 +332,7 @@ export class JobManager {
           destination: request.destination,
         },
         (progress) => {
-          lastStatus = progress.status as JobStatus;
+          lastStatus = progress.status;
           historyService.logEntry({
             id: randomUUID(),
             jobId,
@@ -352,7 +342,7 @@ export class JobManager {
             percent: progress.percent ?? undefined,
             status: lastStatus,
           });
-          if (progress.percent !== undefined && progress.percent !== null) {
+          if (progress.percent !== undefined) {
             lastPercent = progress.percent;
           }
           emitProgress?.({
@@ -491,8 +481,6 @@ export class JobManager {
       case "clear-completed":
         this.clearCompleted();
         break;
-      default:
-        break;
     }
     this.emitUpdate();
   }
@@ -607,22 +595,7 @@ export class JobManager {
       job.startedAt = Date.now();
       this.emitUpdate();
       this.emitLog(job, "Queued job start");
-      historyService.upsertJob({
-        id: job.id,
-        filePath: job.filePath,
-        fileName: job.fileName,
-        fileHash: null,
-        basePrefix: job.basePrefix,
-        renditions: job.renditions,
-        queueMode: job.queueMode,
-        status: job.status,
-        manifestUrl: job.manifestUrl ?? null,
-        warnings: job.warnings ?? [],
-        error: job.error ?? null,
-        queuedAt: job.queuedAt,
-        startedAt: job.startedAt,
-        completedAt: null,
-      });
+      this.persistJobSnapshot(job);
 
       const result = await processVideoJob(
         {
@@ -634,7 +607,7 @@ export class JobManager {
           if (job.status === "canceled") {
             return;
           }
-          job.status = progress.status as JobStatus;
+          job.status = progress.status;
           job.stage = progress.stage;
           job.percent = progress.percent ?? job.percent;
           job.message = progress.message;
@@ -659,7 +632,7 @@ export class JobManager {
           job.status = "failed";
           job.stage = "Failed";
           job.message = result.error ?? "Processing failed";
-          job.error = result.error ?? job.error ?? "Processing failed";
+          job.error = result.error ?? "Processing failed";
         }
       }
     } catch (error) {
@@ -693,26 +666,30 @@ export class JobManager {
       // Persist after the queue bookkeeping recovers: if this write throws
       // (disk full, unwritable userData) the queue must still advance.
       try {
-        historyService.upsertJob({
-          id: job.id,
-          filePath: job.filePath,
-          fileName: job.fileName,
-          fileHash: null,
-          basePrefix: job.basePrefix,
-          renditions: job.renditions,
-          queueMode: job.queueMode,
-          status: job.status,
-          manifestUrl: job.manifestUrl ?? null,
-          warnings: job.warnings ?? [],
-          error: job.error ?? null,
-          queuedAt: job.queuedAt,
-          startedAt: job.startedAt,
-          completedAt: job.completedAt,
-        });
+        this.persistJobSnapshot(job);
       } catch (persistError) {
         console.error("Failed to persist job state", persistError);
       }
     }
+  }
+
+  private persistJobSnapshot(job: InternalJob) {
+    historyService.upsertJob({
+      id: job.id,
+      filePath: job.filePath,
+      fileName: job.fileName,
+      fileHash: null,
+      basePrefix: job.basePrefix,
+      renditions: job.renditions,
+      queueMode: job.queueMode,
+      status: job.status,
+      manifestUrl: job.manifestUrl ?? null,
+      warnings: job.warnings ?? [],
+      error: job.error ?? null,
+      queuedAt: job.queuedAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+    });
   }
 
   private emitUpdate() {
@@ -809,8 +786,6 @@ export class JobManager {
           break;
         case "canceled":
           totals.canceled += 1;
-          break;
-        default:
           break;
       }
     }

@@ -8,6 +8,7 @@ import { JobManager, isVideoFile } from "./services/jobManager";
 import { historyService } from "./services/historyService";
 import { configureS3 } from "./services/minioClient";
 import { settingsService } from "./services/settingsService";
+import { SUPPORTED_VIDEO_EXTENSIONS } from "@shared/ipc";
 import type {
   FolderScanResult,
   QueueControlAction,
@@ -136,7 +137,9 @@ ipcMain.handle("dialog:select-video", async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: "Select a video file",
     properties: ["openFile"],
-    filters: [{ name: "Video Files", extensions: ["mp4", "mov", "mkv", "avi", "m4v", "webm"] }],
+    filters: [
+      { name: "Video Files", extensions: SUPPORTED_VIDEO_EXTENSIONS.map((ext) => ext.slice(1)) },
+    ],
   });
   if (canceled || filePaths.length === 0) {
     return null;
@@ -164,31 +167,26 @@ ipcMain.handle(
       skipped: [],
     };
 
-    try {
-      const dirents = await fs.readdir(folderPath, { withFileTypes: true });
-      for (const dirent of dirents) {
-        if (!dirent.isFile()) {
-          continue;
-        }
-        const fullPath = path.join(folderPath, dirent.name);
-        if (isVideoFile(fullPath)) {
-          const stats = await fs.stat(fullPath);
-          result.files.push({
-            filePath: fullPath,
-            fileName: dirent.name,
-            size: stats.size,
-            extension: path.extname(dirent.name).toLowerCase(),
-          });
-        } else {
-          result.skipped.push({
-            filePath: fullPath,
-            reason: "Unsupported file type",
-          });
-        }
+    const dirents = await fs.readdir(folderPath, { withFileTypes: true });
+    for (const dirent of dirents) {
+      if (!dirent.isFile()) {
+        continue;
       }
-    } catch (error) {
-      console.error("Failed to scan folder", error);
-      throw error;
+      const fullPath = path.join(folderPath, dirent.name);
+      if (isVideoFile(fullPath)) {
+        const stats = await fs.stat(fullPath);
+        result.files.push({
+          filePath: fullPath,
+          fileName: dirent.name,
+          size: stats.size,
+          extension: path.extname(dirent.name).toLowerCase(),
+        });
+      } else {
+        result.skipped.push({
+          filePath: fullPath,
+          reason: "Unsupported file type",
+        });
+      }
     }
 
     return result;

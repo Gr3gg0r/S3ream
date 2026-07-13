@@ -156,14 +156,24 @@ export class SettingsService {
     const accessKeyId = input.accessKeyId || previous?.accessKeyId || "";
     const secretAccessKey = input.secretAccessKey || previous?.secretAccessKey || "";
 
+    const resolved: ResolvedS3Settings = {
+      endpointUrl: input.endpointUrl.trim(),
+      region: input.region.trim(),
+      bucketName: input.bucketName.trim(),
+      bucketUrl: input.bucketUrl.trim(),
+      viewEndpoint: input.viewEndpoint.trim(),
+      pathStyle: input.pathStyle,
+      accessKeyId,
+      secretAccessKey,
+    };
     this.settings = {
       s3: {
-        endpointUrl: input.endpointUrl.trim(),
-        region: input.region.trim(),
-        bucketName: input.bucketName.trim(),
-        bucketUrl: input.bucketUrl.trim(),
-        viewEndpoint: input.viewEndpoint.trim(),
-        pathStyle: input.pathStyle,
+        endpointUrl: resolved.endpointUrl,
+        region: resolved.region,
+        bucketName: resolved.bucketName,
+        bucketUrl: resolved.bucketUrl,
+        viewEndpoint: resolved.viewEndpoint,
+        pathStyle: resolved.pathStyle,
         secrets: {
           format,
           accessKeyId: this.encrypt(accessKeyId, format),
@@ -172,7 +182,7 @@ export class SettingsService {
       },
     };
     this.persist();
-    return this.getS3Settings() as ResolvedS3Settings;
+    return resolved;
   }
 }
 

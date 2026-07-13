@@ -9,9 +9,9 @@
 import { chmodSync, promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execa } from "execa";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { cleanupBucket, generateTestVideo } from "./helpers";
 
 const endpoint = process.env.S3_TEST_ENDPOINT_URL ?? "http://localhost:9000";
 const bucket = `s3ream-itest-pipeline-${Date.now()}`;
@@ -37,20 +37,7 @@ describe.skipIf(!reachable)("processVideoJob end to end", () => {
 
   afterAll(async () => {
     const { getMinioClient } = await import("../../src/main/services/minioClient");
-    const client = getMinioClient();
-    const objects: string[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const stream = client.listObjectsV2(bucket, "", true);
-      stream.on("data", (item) => {
-        if (item.name) objects.push(item.name);
-      });
-      stream.on("end", () => resolve());
-      stream.on("error", reject);
-    });
-    if (objects.length > 0) {
-      await client.removeObjects(bucket, objects);
-    }
-    await client.removeBucket(bucket).catch(() => {});
+    await cleanupBucket(getMinioClient(), bucket);
     vi.unstubAllEnvs();
   });
 
@@ -58,25 +45,7 @@ describe.skipIf(!reachable)("processVideoJob end to end", () => {
     const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-"));
     try {
       const video = path.join(dir, "clip.mp4");
-      await execa(ffmpegInstaller.path, [
-        "-hide_banner",
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=duration=2:size=320x240:rate=15",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:duration=2",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        video,
-      ]);
+      await generateTestVideo(video);
 
       const { processVideoJob } = await import("../../src/main/services/videoPipeline");
       const emit = vi.fn();
@@ -88,7 +57,11 @@ describe.skipIf(!reachable)("processVideoJob end to end", () => {
       expect(result.success).toBe(true);
       expect(result.manifestUrl).toBe(`${endpoint}/${bucket}/${objectKey}/master.m3u8`);
 
-      const response = await fetch(result.manifestUrl ?? "");
+      const manifestUrl = result.manifestUrl;
+      if (!manifestUrl) {
+        throw new Error("Expected a manifest URL from the completed job");
+      }
+      const response = await fetch(manifestUrl);
       expect(response.status).toBe(200);
       const manifest = await response.text();
       expect(manifest).toContain("#EXTM3U");

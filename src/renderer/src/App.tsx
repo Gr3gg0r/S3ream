@@ -12,11 +12,14 @@ import { useTheme } from "@renderer/hooks/useTheme";
 import { useDialogA11y } from "@renderer/hooks/useDialogA11y";
 import { ThemeToggle } from "@renderer/components/ThemeToggle";
 import { JourneyWizard } from "@renderer/components/JourneyWizard";
+import { RenditionPicker } from "@renderer/components/RenditionPicker";
 import { Clock, SlidersHorizontal, Sparkles } from "@renderer/components/icons";
 import {
+  COPY_FEEDBACK_MS,
   defaultRenditions,
   formatBytes,
-  resolutionOptions,
+  formatError,
+  pathSeparator,
   resolutionOrder,
 } from "@renderer/constants";
 
@@ -44,9 +47,6 @@ type View = "simple" | "advanced" | "history";
 const VIEW_STORAGE_KEY = "s3ream-view";
 
 const readStoredView = (): View => {
-  if (typeof window === "undefined") {
-    return "simple";
-  }
   const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
   if (stored === "simple" || stored === "advanced" || stored === "history") {
     return stored;
@@ -66,7 +66,6 @@ const statusClassMap: Record<JobStatus, string> = {
   queued: "linear-badge-neutral",
   processing: "linear-badge-info",
   uploading: "linear-badge-info",
-  paused: "linear-badge-neutral",
   completed: "linear-badge-success",
   failed: "linear-badge-error",
   skipped: "linear-badge-warning",
@@ -91,8 +90,6 @@ const statusLabel = (status: JobStatus) => {
       return "Skipped";
     case "canceled":
       return "Canceled";
-    case "paused":
-      return "Paused";
     default:
       return status;
   }
@@ -109,7 +106,7 @@ const useCopyFeedback = () => {
     if (status === "idle") {
       return;
     }
-    const timeout = window.setTimeout(() => setStatus("idle"), 2000);
+    const timeout = window.setTimeout(() => setStatus("idle"), COPY_FEEDBACK_MS);
     return () => window.clearTimeout(timeout);
   }, [status]);
   return [status, setStatus] as const;
@@ -293,7 +290,7 @@ function App() {
         return updated.length > 50 ? updated.slice(updated.length - 50) : updated;
       });
     });
-    return () => unbind?.();
+    return () => unbind();
   }, []);
 
   useEffect(() => {
@@ -319,8 +316,8 @@ function App() {
       });
     });
     return () => {
-      unbindQueue?.();
-      unbindLog?.();
+      unbindQueue();
+      unbindLog();
     };
   }, [pushMessage]);
 
@@ -333,13 +330,13 @@ function App() {
 
   useEffect(() => {
     if (!copiedJobId) return;
-    const timeout = window.setTimeout(() => setCopiedJobId(null), 2000);
+    const timeout = window.setTimeout(() => setCopiedJobId(null), COPY_FEEDBACK_MS);
     return () => window.clearTimeout(timeout);
   }, [copiedJobId]);
 
   useEffect(() => {
     if (!copiedHistoryId) return;
-    const timeout = window.setTimeout(() => setCopiedHistoryId(null), 2000);
+    const timeout = window.setTimeout(() => setCopiedHistoryId(null), COPY_FEEDBACK_MS);
     return () => window.clearTimeout(timeout);
   }, [copiedHistoryId]);
 
@@ -351,16 +348,10 @@ function App() {
           next.add(record.id);
         }
       }
+      // next is built exclusively from ids in previous, so equal sizes
+      // already mean identical sets.
       if (next.size === previous.size) {
-        let changed = false;
-        previous.forEach((id) => {
-          if (!next.has(id)) {
-            changed = true;
-          }
-        });
-        if (!changed) {
-          return previous;
-        }
+        return previous;
       }
       return next;
     });
@@ -385,11 +376,10 @@ function App() {
       const sorted = Array.from(next).sort(
         (a, b) => resolutionOrder.indexOf(a) - resolutionOrder.indexOf(b),
       );
-      return sorted.length > 0 ? sorted : [];
+      return sorted;
     });
   };
 
-  const selectedRenditionSet = useMemo(() => new Set(selectedRenditions), [selectedRenditions]);
   const formattedElapsed = useMemo(() => formatDuration(elapsedMs), [elapsedMs]);
   const singleFormattedElapsed = useMemo(() => formatDuration(singleElapsedMs), [singleElapsedMs]);
 
@@ -409,9 +399,7 @@ function App() {
         );
         setHistoryTotal(response.total);
       } catch (error) {
-        pushMessage(
-          `Failed to load history: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        pushMessage(`Failed to load history: ${formatError(error)}`);
       } finally {
         setHistoryLoading(false);
       }
@@ -442,9 +430,7 @@ function App() {
     try {
       selection = await window.api.selectVideo();
     } catch (error) {
-      pushMessage(
-        `Failed to open file dialog: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      pushMessage(`Failed to open file dialog: ${formatError(error)}`);
       return;
     }
     if (!selection) return;
@@ -480,9 +466,7 @@ function App() {
         pushMessage(`Skipped ${scan.skipped.length} unsupported files.`);
       }
     } catch (error) {
-      pushMessage(
-        `Failed to scan folder: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      pushMessage(`Failed to scan folder: ${formatError(error)}`);
     }
   };
 
@@ -530,7 +514,7 @@ function App() {
       }
       void loadHistory();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       setSingleError(message);
       pushMessage(`Failed to convert: ${message}`);
     } finally {
@@ -566,9 +550,7 @@ function App() {
         setSelectedJobId(jobIds[0]);
       }
     } catch (error) {
-      pushMessage(
-        `Failed to queue batch: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      pushMessage(`Failed to queue batch: ${formatError(error)}`);
     }
   };
 
@@ -579,14 +561,12 @@ function App() {
     try {
       await window.api.controlQueue(action);
     } catch (error) {
-      pushMessage(
-        `Queue control failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      pushMessage(`Queue control failed: ${formatError(error)}`);
     }
   };
 
   const handleCopyUrl = async (
-    url: string | undefined,
+    url: string | null | undefined,
     options?: { jobId?: string; historyId?: string },
   ) => {
     if (!url) return;
@@ -601,22 +581,12 @@ function App() {
       }
     } catch {
       setCopyStatus("error");
-      if (options?.jobId) {
-        setCopiedJobId(options.jobId);
-      }
-      if (options?.historyId) {
-        setCopiedHistoryId(options.historyId);
-      }
     }
   };
 
   const handleHistorySearchSubmit = (event: FormEvent) => {
     event.preventDefault();
     setHistorySearch(historySearchInput.trim());
-  };
-
-  const handleHistoryRefresh = () => {
-    void loadHistory();
   };
 
   const toggleHistorySelection = (historyId: string) => {
@@ -687,9 +657,7 @@ function App() {
       pushMessage(`Removed ${record.fileName} from history`);
       void loadHistory();
     } catch (error) {
-      pushMessage(
-        `Failed to delete history: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      pushMessage(`Failed to delete history: ${formatError(error)}`);
     }
   };
 
@@ -870,26 +838,11 @@ function App() {
 
                   <div className="flex flex-col gap-1.5">
                     <span className="linear-label">Output renditions</span>
-                    <div className="flex flex-wrap gap-2">
-                      {resolutionOptions.map((option) => {
-                        const isSelected = selectedRenditionSet.has(option.id);
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium transition ${
-                              isSelected
-                                ? "border-primary bg-primary text-primary-content"
-                                : "border-base-300 text-base-content/65 hover:bg-base-200"
-                            }`}
-                            onClick={() => toggleRendition(option.id)}
-                            disabled={singleProcessing}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <RenditionPicker
+                      selectedRenditions={selectedRenditions}
+                      onToggle={toggleRendition}
+                      disabled={singleProcessing}
+                    />
                     <span className="linear-hint">
                       Defaults to 360p, 480p, and 720p. Higher renditions are skipped if the source
                       is too small.
@@ -936,8 +889,8 @@ function App() {
                     <div className="max-h-36 overflow-y-auto linear-well p-3">
                       {singleProgressEvents.length > 0 ? (
                         <ul className="linear-mono space-y-1">
-                          {singleProgressTail.map((event, index) => (
-                            <li key={`${event.jobId}-${event.timestamp}-${index}`}>
+                          {singleProgressTail.map((event) => (
+                            <li key={`${event.jobId}-${event.timestamp}`}>
                               <span className="font-semibold text-primary">{event.stage}</span>
                               {event.message ? (
                                 <span className="text-base-content/70"> — {event.message}</span>
@@ -982,7 +935,7 @@ function App() {
                               type="button"
                               className="linear-btn linear-btn-secondary linear-btn-xs"
                               onClick={() =>
-                                handleCopyUrl(singleResult.manifestUrl ?? undefined, {
+                                handleCopyUrl(singleResult.manifestUrl, {
                                   jobId: singleResult.jobId,
                                 })
                               }
@@ -1075,25 +1028,10 @@ function App() {
 
                   <div className="flex flex-col gap-1.5">
                     <span className="linear-label">Output renditions</span>
-                    <div className="flex flex-wrap gap-2">
-                      {resolutionOptions.map((option) => {
-                        const isSelected = selectedRenditionSet.has(option.id);
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium transition ${
-                              isSelected
-                                ? "border-primary bg-primary text-primary-content"
-                                : "border-base-300 text-base-content/65 hover:bg-base-200"
-                            }`}
-                            onClick={() => toggleRendition(option.id)}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <RenditionPicker
+                      selectedRenditions={selectedRenditions}
+                      onToggle={toggleRendition}
+                    />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -1437,7 +1375,7 @@ function App() {
                     <button
                       type="button"
                       className="linear-btn linear-btn-secondary linear-btn-sm"
-                      onClick={handleHistoryRefresh}
+                      onClick={() => void loadHistory()}
                     >
                       {historyLoading ? "Loading…" : "Refresh"}
                     </button>
@@ -1518,7 +1456,7 @@ function App() {
                                     type="button"
                                     className="linear-btn linear-btn-secondary linear-btn-xs"
                                     onClick={() =>
-                                      handleCopyUrl(record.manifestUrl ?? undefined, {
+                                      handleCopyUrl(record.manifestUrl, {
                                         historyId: record.id,
                                       })
                                     }
@@ -1726,7 +1664,5 @@ function App() {
     </>
   );
 }
-
-const pathSeparator = () => (navigator.platform.startsWith("Win") ? "\\" : "/");
 
 export default App;

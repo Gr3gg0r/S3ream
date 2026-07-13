@@ -8,6 +8,7 @@
  *   S3_TEST_ENDPOINT_URL=http://localhost:9002 pnpm run test:integration
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { cleanupBucket } from "./helpers";
 
 const endpoint = process.env.S3_TEST_ENDPOINT_URL ?? "http://localhost:9000";
 const bucket = `s3ream-itest-${Date.now()}`;
@@ -30,20 +31,7 @@ describe.skipIf(!reachable)("RustFS round trip", () => {
 
   afterAll(async () => {
     const { getMinioClient } = await import("../../src/main/services/minioClient");
-    const client = getMinioClient();
-    const objects: string[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const stream = client.listObjectsV2(bucket, "", true);
-      stream.on("data", (item) => {
-        if (item.name) objects.push(item.name);
-      });
-      stream.on("end", () => resolve());
-      stream.on("error", reject);
-    });
-    if (objects.length > 0) {
-      await client.removeObjects(bucket, objects);
-    }
-    await client.removeBucket(bucket).catch(() => {});
+    await cleanupBucket(getMinioClient(), bucket);
     vi.unstubAllEnvs();
   });
 

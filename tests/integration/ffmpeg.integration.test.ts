@@ -7,11 +7,11 @@
 import { chmodSync, promises as fs, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execa } from "execa";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { convertToHls, probeVideoMetadata } from "../../src/main/services/videoPipeline";
+import { generateTestVideo } from "./helpers";
 
 const ffmpegPath = ffmpegInstaller.path;
 const ffprobePath = ffprobeInstaller.path;
@@ -26,28 +26,6 @@ beforeAll(async () => {
     chmodSync(ffprobePath, 0o755);
   }
 });
-
-const generateTestVideo = async (filePath: string) => {
-  await execa(ffmpegPath, [
-    "-hide_banner",
-    "-y",
-    "-f",
-    "lavfi",
-    "-i",
-    "testsrc2=duration=2:size=320x240:rate=15",
-    "-f",
-    "lavfi",
-    "-i",
-    "sine=frequency=440:duration=2",
-    "-c:v",
-    "libx264",
-    "-pix_fmt",
-    "yuv420p",
-    "-c:a",
-    "aac",
-    filePath,
-  ]);
-};
 
 describe("probeVideoMetadata (real ffprobe)", () => {
   it("reads duration, dimensions, and frame rate", async () => {

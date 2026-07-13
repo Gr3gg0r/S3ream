@@ -71,7 +71,7 @@ The app has three views, switched from the header:
 │   ├── setup.ts                # Per-file isolated userData dir
 │   ├── main/                   # Unit tests for main-process services
 │   ├── renderer/               # jsdom renderer smoke tests
-│   └── integration/            # Opt-in: real FFmpeg + live RustFS round trips
+│   └── integration/            # Opt-in: real FFmpeg + live RustFS round trips (shared helpers in helpers.ts)
 └── src/
     ├── main/
     │   ├── index.ts              # Electron main process entry (window, IPC handlers)
@@ -93,6 +93,7 @@ The app has three views, switched from the header:
     │       ├── components/
     │       │   ├── JourneyWizard.tsx # Simple view: 3-step wizard (Video → Quality → Destination → Convert)
     │       │   ├── DropZone.tsx    # Dashed drop area + click-to-browse for the wizard
+    │       │   ├── RenditionPicker.tsx # Shared rendition toggle buttons (Simple + Advanced)
     │       │   ├── ThemeToggle.tsx # System/Light/Dark segmented control
     │       │   └── icons.tsx       # Inline stroke SVG icons (currentColor, 16px default)
     │       └── hooks/
@@ -172,7 +173,7 @@ Copy `.env.example` to `.env` and adjust values:
 | `S3_VIEW_ENDPOINT`           | Optional CDN or view base for manifests                    |
 | `S3_UPLOAD_CONCURRENCY`      | Parallel upload workers (default 4, max 16)                |
 
-The Vite renderer build explicitly inlines `S3_BUCKET_URL`, `S3_VIEW_ENDPOINT`, and `S3_BUCKET_NAME` via `define` in `electron.vite.config.ts`. If you add new env vars needed in the renderer, you must expose them there.
+The renderer currently reads no env vars — all S3 configuration is consumed in the main process. If a future variable is needed in React code, expose it via `loadEnv` + a `renderer.define` entry in `electron.vite.config.ts`.
 
 ---
 
@@ -277,7 +278,7 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 - **Formatter**: Prettier (semicolons, double quotes, trailing commas, 100 print width, 2-space tabs).
 - **Linter**: ESLint flat config with TypeScript, React, and React Hooks rules.
 - **TypeScript**: Strict mode enabled. `noUnusedLocals`, `noUnusedParameters`, and `noImplicitReturns` are enforced. Unused variables will fail compilation.
-- **Imports**: Use path aliases (`@main/*`, `@preload/*`, `@renderer/*`, `@shared/*`).
+- **Imports**: Use path aliases (`@renderer/*`, `@shared/*`).
 - **Renderer imports**: `@renderer` resolves to `src/renderer/src`.
 - **File naming**: kebab-case for configs, camelCase for source files.
 
@@ -313,10 +314,10 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 
 ### Adding a new env var to the renderer
 
-Vite does not automatically expose `process.env` to the renderer. If the variable is needed in React code:
+Vite does not automatically expose `process.env` to the renderer, and the renderer currently reads none. If a variable is ever needed in React code:
 
-1. Load it in `electron.vite.config.ts` using `loadEnv`.
-2. Add it to the `renderer.define` block so it is replaced at build time.
+1. Load it in `electron.vite.config.ts` using `loadEnv` (re-add the `({ mode })` param).
+2. Add a `renderer.define` entry so it is replaced at build time.
 
 ### Changing DaisyUI themes
 

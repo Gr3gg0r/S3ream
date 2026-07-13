@@ -90,5 +90,3 @@ export const DropZone = ({ onFileSelected, disabled }: DropZoneProps) => {
     </div>
   );
 };
-
-export default DropZone;

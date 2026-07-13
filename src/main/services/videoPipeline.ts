@@ -60,6 +60,7 @@ const ffmpegPath = ffmpegInstaller.path;
 const ffprobePath = ffprobeInstaller.path;
 
 const PROCESSING_PERCENT_SHARE = 85;
+const UPLOAD_START_PERCENT = PROCESSING_PERCENT_SHARE + 5;
 const DEFAULT_UPLOAD_CONCURRENCY = 4;
 const MAX_UPLOAD_CONCURRENCY = 16;
 
@@ -165,7 +166,7 @@ export const computeScaledWidth = (
   sourceHeight: number | null,
   targetHeight: number,
 ) => {
-  if (!sourceWidth || !sourceHeight || sourceHeight === 0) {
+  if (!sourceWidth || !sourceHeight) {
     return null;
   }
   const aspectRatio = sourceWidth / sourceHeight;
@@ -327,9 +328,7 @@ export const determineVariantProfiles = (
     if (!sourceHeight) {
       warnings.push("Video resolution could not be detected; defaulting to 720p output.");
       return {
-        variants: [
-          VARIANT_PROFILES.find((profile) => profile.id === "720p") ?? VARIANT_PROFILES[2],
-        ],
+        variants: [VARIANT_PROFILES.find((profile) => profile.id === "720p")!],
         warnings,
       };
     }
@@ -347,7 +346,7 @@ export const determineVariantProfiles = (
 
     warnings.push("No suitable renditions found; defaulting to 360p output.");
     return {
-      variants: [VARIANT_PROFILES.find((profile) => profile.id === "360p") ?? VARIANT_PROFILES[0]],
+      variants: [VARIANT_PROFILES.find((profile) => profile.id === "360p")!],
       warnings,
     };
   }
@@ -574,11 +573,11 @@ export const createMasterManifest = async (
     const audioBandwidth = Math.round(info.profile.audioBitrate);
     const totalBandwidth = Math.max(1, videoBandwidth + audioBandwidth);
     const averageBandwidth = Math.round(totalBandwidth * 0.9);
-    const attributes: string[] = [`BANDWIDTH=${totalBandwidth}`];
+    const attributes: string[] = [
+      `BANDWIDTH=${totalBandwidth}`,
+      `AVERAGE-BANDWIDTH=${averageBandwidth}`,
+    ];
 
-    if (averageBandwidth > 0) {
-      attributes.push(`AVERAGE-BANDWIDTH=${averageBandwidth}`);
-    }
     if (info.width) {
       attributes.push(`RESOLUTION=${info.width}x${info.profile.height}`);
     }
@@ -816,15 +815,13 @@ export const processVideoJob = async (
     emit({
       status: "uploading",
       stage: isLocal ? "Copying to folder" : "Uploading to S3",
-      percent: PROCESSING_PERCENT_SHARE + 5,
+      percent: UPLOAD_START_PERCENT,
       message: isLocal ? "Starting copy" : "Starting upload",
     });
 
     const reportProgress = (index: number, total: number, currentObject: string) => {
       const transferPercent =
-        PROCESSING_PERCENT_SHARE +
-        5 +
-        (index / Math.max(total, 1)) * (100 - (PROCESSING_PERCENT_SHARE + 5));
+        UPLOAD_START_PERCENT + (index / Math.max(total, 1)) * (100 - UPLOAD_START_PERCENT);
       emit({
         status: "uploading",
         stage: isLocal ? "Copying to folder" : "Uploading to S3",
@@ -833,26 +830,32 @@ export const processVideoJob = async (
       });
     };
 
-    const manifestObjectKey = isLocal
-      ? await copyArtifactsToFolder(
-          conversion.outputDir,
-          conversion.manifestPath,
-          conversion.files,
-          objectKey,
-          destination.directory,
-          reportProgress,
-          signal,
-        )
-      : await uploadArtifacts(
-          s3Client as Client,
-          bucket,
-          objectKey,
-          conversion.outputDir,
-          conversion.manifestPath,
-          conversion.files,
-          reportProgress,
-          signal,
-        );
+    let manifestObjectKey: string;
+    if (isLocal) {
+      manifestObjectKey = await copyArtifactsToFolder(
+        conversion.outputDir,
+        conversion.manifestPath,
+        conversion.files,
+        objectKey,
+        destination.directory,
+        reportProgress,
+        signal,
+      );
+    } else {
+      if (!s3Client) {
+        throw new Error("S3 client is not configured.");
+      }
+      manifestObjectKey = await uploadArtifacts(
+        s3Client,
+        bucket,
+        objectKey,
+        conversion.outputDir,
+        conversion.manifestPath,
+        conversion.files,
+        reportProgress,
+        signal,
+      );
+    }
 
     emit({
       status: "completed",

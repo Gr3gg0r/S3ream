@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppSettingsView, SingleProcessResult } from "@shared/ipc";
 import { DropZone } from "@renderer/components/DropZone";
+import { RenditionPicker } from "@renderer/components/RenditionPicker";
 import { Check, ChevronLeft, Cloud, FolderOpen } from "@renderer/components/icons";
 import {
+  COPY_FEEDBACK_MS,
   defaultRenditions,
   formatBytes,
-  resolutionOptions,
+  formatError,
+  pathSeparator,
   resolutionOrder,
 } from "@renderer/constants";
 
@@ -24,8 +27,6 @@ interface WizardFile {
   fileName: string;
   size: number;
 }
-
-const pathSeparator = () => (navigator.platform.startsWith("Win") ? "\\" : "/");
 
 export const JourneyWizard = () => {
   const [step, setStep] = useState<WizardStep>(1);
@@ -81,12 +82,12 @@ export const JourneyWizard = () => {
       if (!processingRef.current) return;
       setProgress({ stage: event.stage, percent: event.percent ?? null });
     });
-    return () => unbind?.();
+    return () => unbind();
   }, []);
 
   useEffect(() => {
     if (!copied) return;
-    const timeout = window.setTimeout(() => setCopied(false), 2000);
+    const timeout = window.setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     return () => window.clearTimeout(timeout);
   }, [copied]);
 
@@ -172,7 +173,7 @@ export const JourneyWizard = () => {
         setPhase("error");
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setErrorMessage(formatError(error));
       setPhase("error");
     } finally {
       processingRef.current = false;
@@ -279,25 +280,7 @@ export const JourneyWizard = () => {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <span className="linear-label">Output renditions</span>
-              <div className="flex flex-wrap gap-2">
-                {resolutionOptions.map((option) => {
-                  const isSelected = renditions.includes(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className={`inline-flex h-7 items-center rounded-full border px-3 text-[12px] font-medium transition ${
-                        isSelected
-                          ? "border-primary bg-primary text-primary-content"
-                          : "border-base-300 text-base-content/65 hover:bg-base-200"
-                      }`}
-                      onClick={() => toggleRendition(option.id)}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <RenditionPicker selectedRenditions={renditions} onToggle={toggleRendition} />
               <span className="linear-hint">
                 Higher renditions are skipped automatically if the source is too small.
               </span>
@@ -594,5 +577,3 @@ export const JourneyWizard = () => {
     </section>
   );
 };
-
-export default JourneyWizard;

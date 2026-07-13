@@ -48,31 +48,10 @@ export class BrowserWindow {
   close(): void {}
 }
 
-export const ipcMain = {
-  handle: (): void => {},
-  on: (): void => {},
-  removeHandler: (): void => {},
-};
-
-export const dialog = {
-  showOpenDialog: async (): Promise<{ canceled: boolean; filePaths: string[] }> => ({
-    canceled: true,
-    filePaths: [],
-  }),
-};
-
-export const shell = {
-  openExternal: async (): Promise<void> => {},
-};
-
 export const safeStorage = {
   isEncryptionAvailable: (): boolean => false,
   encryptString: (): Buffer => {
     throw new Error("safeStorage encryption is unavailable in tests");
   },
   decryptString: (): string => "",
-};
-
-export const webUtils = {
-  getPathForFile: (file: File): string => (file as File & { path?: string }).path ?? "",
 };

@@ -12,8 +12,6 @@ export default defineConfig({
     alias: [
       // Plain Node cannot load the electron API; swap in the mock.
       { find: /^electron$/, replacement: r("./tests/mocks/electron.ts") },
-      { find: /^@main\/(.*)$/, replacement: r("./src/main/$1") },
-      { find: /^@preload\/(.*)$/, replacement: r("./src/preload/$1") },
       { find: /^@renderer\/(.*)$/, replacement: r("./src/renderer/src/$1") },
       { find: /^@shared\/(.*)$/, replacement: r("./src/shared/$1") },
     ],

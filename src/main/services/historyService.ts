@@ -153,11 +153,6 @@ export class HistoryService {
     };
   }
 
-  getJobById(id: string): HistoryRecord | null {
-    const job = this.store.jobs.find((record) => record.id === id);
-    return job ? { ...job } : null;
-  }
-
   deleteJob(id: string) {
     this.store.jobs = this.store.jobs.filter((record) => record.id !== id);
     this.store.logs = this.store.logs.filter((entry) => entry.jobId !== id);

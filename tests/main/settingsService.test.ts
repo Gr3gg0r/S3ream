@@ -40,7 +40,7 @@ describe("SettingsService", () => {
   it("round-trips settings in plaintext when OS encryption is unavailable", () => {
     const { service, dir, file } = createService();
     const resolved = service.save(baseInput);
-    expect(resolved).toEqual({ ...baseInput });
+    expect(resolved).toEqual(baseInput);
 
     const stored = JSON.parse(readFileSync(file, "utf-8"));
     expect(stored.s3.secrets.format).toBe("plain");

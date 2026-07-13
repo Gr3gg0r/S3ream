@@ -5,15 +5,10 @@ export type JobStatus =
   | "queued"
   | "processing"
   | "uploading"
-  | "paused"
   | "completed"
   | "failed"
   | "skipped"
   | "canceled";
-
-export interface JobRenditionOptions {
-  renditions: string[];
-}
 
 export interface QueueRequest {
   basePrefix: string;
