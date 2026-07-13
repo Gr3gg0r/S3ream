@@ -26,3 +26,4 @@ yarn.lock
 
 # Playwright MCP QA artifacts
 .playwright-mcp/
+docker-compose.override.yml
