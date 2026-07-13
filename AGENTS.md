@@ -24,17 +24,22 @@ The app has three views, switched from the header:
 
 | Layer              | Technology                                                                       |
 | ------------------ | -------------------------------------------------------------------------------- |
-| Runtime            | Electron 43.1.0 (Node ≥ 18.16.0)                                                 |
+| Runtime            | Electron 43.1.0 (Node ^20.19.0 or ≥ 22.12.0)                                     |
 | Package Manager    | pnpm 8.15.4                                                                      |
-| Build Tool         | electron-vite 2.2.0 (Vite 5 + Rollup for main/preload/renderer)                  |
-| Renderer Framework | React 18.2 + TypeScript                                                          |
-| Renderer Bundler   | Vite 5 with `@vitejs/plugin-react`                                               |
-| Styling            | Tailwind CSS 3.4 + DaisyUI 4.10                                                  |
+| Build Tool         | electron-vite 5 (Vite 8 + Rolldown for main/preload/renderer)                    |
+| Renderer Framework | React 19 + TypeScript ~5.9 (TS 7 breaks typescript-eslint — see below)           |
+| Renderer Bundler   | Vite 8 with `@vitejs/plugin-react` and `@tailwindcss/vite`                       |
+| Styling            | Tailwind CSS 4 + DaisyUI 5 (CSS-first config, no JS theme config)                |
 | Video Processing   | FFmpeg / FFprobe via `@ffmpeg-installer/ffmpeg` and `@ffprobe-installer/ffprobe` |
 | S3 Client          | `minio` JavaScript package (vendor-neutral S3 client)                            |
-| Tests              | Vitest 2 + Testing Library (unit/jsdom) + opt-in integration vs RustFS           |
+| Tests              | Vitest 4 + Testing Library (unit/jsdom) + opt-in integration vs RustFS           |
 | Process Spawning   | `execa` 9.x                                                                      |
 | Environment Config | `dotenv` (loaded in main process)                                                |
+
+> **TypeScript is pinned to ~5.9 on purpose.** TS 7 (the native port) removed
+> `baseUrl`/`moduleResolution: "node"` and, more importantly, breaks
+> typescript-eslint 8's type-aware parsing (`ts.ModuleKind` shape changed).
+> Only bump past 5.x once typescript-eslint declares TS 7 support.
 
 ---
 
@@ -56,8 +61,6 @@ The app has three views, switched from the header:
 ├── tsconfig.renderer.json      # Renderer + shared
 ├── eslint.config.mjs           # ESLint flat config (TS + React + Prettier)
 ├── prettier.config.cjs
-├── tailwind.config.cjs         # DaisyUI themes: s3ream / s3reamdark
-├── postcss.config.cjs
 ├── scripts/
 │   └── bootstrap-toxiproxy.sh  # Configures latency/bandwidth toxics
 ├── tests/
@@ -83,7 +86,7 @@ The app has three views, switched from the header:
     │   └── src/
     │       ├── main.tsx          # React root mount
     │       ├── App.tsx           # App shell: header, view switch, Advanced (single/batch) + History views
-    │       ├── index.css         # Tailwind directives + base font + .linear-* component classes
+    │       ├── index.css         # Tailwind 4 import, DaisyUI 5 theme blocks, .linear-* component classes
     │       ├── components/
     │       │   ├── JourneyWizard.tsx # Simple view: 3-step wizard (Video → Quality → Destination → Convert)
     │       │   ├── DropZone.tsx    # Dashed drop area + click-to-browse for the wizard
@@ -138,7 +141,7 @@ pnpm run test:integration  # Full suite: real FFmpeg + live RustFS (needs docker
 
 ## Testing
 
-Vitest 2 is configured in `vitest.config.ts`:
+Vitest 4 is configured in `vitest.config.ts`:
 
 - **Unit tests** (`tests/main/**`, `tests/renderer/**`) run in plain Node/jsdom. The `electron` module is aliased to `tests/mocks/electron.ts` (plain `require("electron")` in Node returns a binary path, not the API). `tests/setup.ts` points `S3REAM_TEST_USER_DATA` at a fresh temp dir per test file so the `historyService` singleton stays isolated.
 - **Integration tests** (`tests/integration/**`) are excluded unless `S3REAM_TEST_INTEGRATION=1` (set by `pnpm run test:integration`). They need the RustFS stack up (`docker compose up -d`); override the endpoint with `S3_TEST_ENDPOINT_URL` when using alternate ports. Each suite creates its own bucket and cleans up after itself. They self-skip when the endpoint is unreachable.
@@ -203,6 +206,8 @@ Window settings:
 - `nodeIntegration: false`
 - `contextIsolation: true`
 - `sandbox: true` (the preload only uses `ipcRenderer`/`contextBridge`, which work sandboxed — keep it that way)
+
+The preload bundle must keep `require("electron")` external — if the electron npm shim gets inlined, `window.api` silently disappears and the renderer shows "Native bridge unavailable". electron-vite 5 force-sets `ssr.noExternal: true` for preloads, which under Vite 8 (rolldown) overrides `rollupOptions.external`; the config therefore re-externalizes electron via `preload.ssr.external: ["electron"]` in `electron.vite.config.ts`. After touching the build config, verify `dist/preload/index.cjs` starts with `require("electron")`.
 
 ### IPC Contracts
 
@@ -277,7 +282,7 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 
 - Single large functional component (`App`) with many `useState`/`useEffect` hooks; the Simple journey lives in `components/JourneyWizard.tsx` and talks to `window.api` directly.
 - Theme is user-selectable via `useTheme()` (`"system" | "light" | "dark"`, localStorage key `s3ream-theme`); `"system"` tracks OS `prefers-color-scheme: dark` live. Modals use `useDialogA11y()` for focus trapping, ESC close, and focus restore.
-- The UI follows an Apple glassmorphism design language on a shot.so-style gradient mesh: the app root uses `.glass-canvas` (fixed radial-gradient blobs, per-theme in `index.css`), and panels are frosted glass (`.linear-card` — `backdrop-filter: blur(24px) saturate(180%)`, translucent per-theme backgrounds, 16px radii, soft diffused shadows). Reusable component classes (`linear-card`, `linear-well`, `linear-btn*`, `linear-input`, `linear-select`, `linear-label`, `linear-hint`, `linear-badge*`, `linear-table`, `linear-thead`, `linear-segmented`, `linear-progress`, `linear-alert*`, `linear-mono`, `linear-dropzone`) live in `@layer components` in `src/renderer/src/index.css`; glass/translucent values are scoped via `[data-theme="s3ream"]` / `[data-theme="s3reamdark"]` selectors, while accent-driven values reference DaisyUI CSS variables (`oklch(var(--…))`). Prefer these classes over raw DaisyUI component classes (`btn`, `card`, `badge`, `table`, `alert`) when touching the renderer; only `card-body` (padding) and `checkbox checkbox-sm` (restyled globally) remain in use. New translucent surfaces must NOT use solid `bg-base-*` — glass only reads against the gradient canvas.
+- The UI follows an Apple glassmorphism design language on a shot.so-style gradient mesh: the app root uses `.glass-canvas` (fixed radial-gradient blobs, per-theme in `index.css`), and panels are frosted glass (`.linear-card` — `backdrop-filter: blur(24px) saturate(180%)`, translucent per-theme backgrounds, 16px radii, soft diffused shadows). Reusable component classes (`linear-card`, `linear-well`, `linear-btn*`, `linear-input`, `linear-select`, `linear-label`, `linear-hint`, `linear-badge*`, `linear-table`, `linear-thead`, `linear-segmented`, `linear-progress`, `linear-alert*`, `linear-mono`, `linear-dropzone`) live in `@layer components` in `src/renderer/src/index.css`; glass/translucent values are scoped via `[data-theme="s3ream"]` / `[data-theme="s3reamdark"]` selectors, while accent-driven values reference DaisyUI 5 CSS variables (`var(--color-…)`). Prefer these classes over raw DaisyUI component classes (`btn`, `card`, `badge`, `table`, `alert`) when touching the renderer; only `card-body` (padding) and `checkbox checkbox-sm` (restyled globally) remain in use. New translucent surfaces must NOT use solid `bg-base-*` — glass only reads against the gradient canvas.
 - Typography is Inter, loaded via `@fontsource/inter` imports in `src/renderer/src/main.tsx` (400/500/600/700), with Tailwind utilities used inline for one-off tweaks; there are no separate CSS modules for components.
 
 ---
@@ -312,12 +317,12 @@ Vite does not automatically expose `process.env` to the renderer. If the variabl
 
 ### Changing DaisyUI themes
 
-Themes are defined in `tailwind.config.cjs` as fully-specified token sets (no DaisyUI theme inheritance). The palette is monochrome black & white, flipped between themes — only the status colors (info/success/warning/error) carry hue, and they are for badges/alerts only:
+Themes are defined CSS-first in `src/renderer/src/index.css` via `@plugin "daisyui/theme"` blocks (DaisyUI 5 has no JS theme config — there is no `tailwind.config.cjs`). Each block is a fully-specified token set (no theme inheritance). The palette is monochrome black & white, flipped between themes — only the status colors (info/success/warning/error) carry hue, and they are for badges/alerts only:
 
-- Light: `s3ream` — white surfaces on a `#FAFAFA` base, `#0A0A0A` primary/content
-- Dark: `s3reamdark` — `#141414` surfaces on a `#0A0A0A` base, `#FAFAFA` primary/content
+- Light: `s3ream` — white surfaces on a `#FAFAFA` base, `#0A0A0A` primary/content (`default: true`)
+- Dark: `s3reamdark` — `#141414` surfaces on a `#0A0A0A` base, `#FAFAFA` primary/content (`prefersdark: true`)
 
-Both themes share the same radius/border tokens (`--rounded-box: 1rem`, `--rounded-btn: 0.625rem`, `--rounded-badge: 9999px`, `--border-btn: 1px`, `--btn-text-case: none`). `tailwind.config.cjs` also extends `fontFamily.sans` with Inter. The component classes in `src/renderer/src/index.css` read accent colors through DaisyUI CSS variables (`oklch(var(--p))`, etc.) and glass translucency through `[data-theme="…"]` selectors, so changing a token in the config restyles the whole UI. The `.glass-canvas` blobs are grayscale and `.linear-progress` fills with solid `oklch(var(--p))` — keep the monochrome constraint when adding surfaces.
+Both themes share the same radius/border tokens (`--radius-box: 1rem`, `--radius-field: 0.625rem`, `--radius-selector: 9999px`, `--border-field: 1px`). The `@theme` block in the same file registers Inter as `--font-sans`. The component classes in `index.css` read accent colors through DaisyUI 5 CSS variables (`var(--color-primary)`, `var(--color-base-content)`, etc. — the v4 `oklch(var(--p))` shorthand is gone) and glass translucency through `[data-theme="…"]` selectors, so changing a token in a theme block restyles the whole UI. The `.glass-canvas` blobs are grayscale and `.linear-progress` fills with solid `var(--color-primary)` — keep the monochrome constraint when adding surfaces.
 
 The `<html>` tag in `index.html` defaults to `data-theme="s3ream"`, and `useTheme()` (`src/renderer/src/hooks/useTheme.ts`) applies `s3ream`/`s3reamdark` based on the stored preference (System/Light/Dark toggle in the header). `src/renderer/public/theme-init.js` applies the same logic before React mounts so the first paint already has the right theme — keep the two in sync when changing the preference logic.
 

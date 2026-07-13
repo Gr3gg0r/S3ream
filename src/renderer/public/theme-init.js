@@ -10,7 +10,7 @@
       stored === "dark" ||
       (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.setAttribute("data-theme", dark ? "s3reamdark" : "s3ream");
-  } catch (error) {
+  } catch {
     // Fall back to the default theme declared on <html>.
   }
 })();

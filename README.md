@@ -20,7 +20,7 @@ Running a server just to convert video to HLS is an unnecessary burden — your 
 ## Prerequisites
 
 - [pnpm](https://pnpm.io/) ≥ 8
-- Node.js ≥ 18
+- Node.js ^20.19.0 or ≥ 22.12.0
 - Docker & Docker Compose (for the bundled RustFS stack)
 - FFmpeg (optional locally; the app ships with a bundled binary)
 

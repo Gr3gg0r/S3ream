@@ -19,7 +19,7 @@ const FOCUSABLE_SELECTOR = [
 export const useDialogA11y = (
   isOpen: boolean,
   onClose: () => void,
-  dialogRef: RefObject<HTMLElement>,
+  dialogRef: RefObject<HTMLElement | null>,
 ) => {
   useEffect(() => {
     if (!isOpen) {

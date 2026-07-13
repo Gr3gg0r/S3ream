@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
@@ -26,6 +27,14 @@ export default defineConfig(({ mode }) => {
         },
       },
       plugins: [externalizeDepsPlugin()],
+      // electron-vite 5 forces `ssr.noExternal: true` for preloads; under Vite 8
+      // (rolldown) that overrides rollupOptions.external and inlines the electron
+      // npm shim, which breaks `ipcRenderer`/`contextBridge` in sandboxed preloads.
+      // Re-externalize electron at the SSR level so the bundle keeps
+      // `require("electron")` and Electron injects the real module at runtime.
+      ssr: {
+        external: ["electron"],
+      },
       build: {
         outDir: "dist/preload",
         emptyOutDir: true,
@@ -53,13 +62,10 @@ export default defineConfig(({ mode }) => {
         "process.env.S3_VIEW_ENDPOINT": JSON.stringify(env.S3_VIEW_ENDPOINT ?? ""),
         "process.env.S3_BUCKET_NAME": JSON.stringify(env.S3_BUCKET_NAME ?? ""),
       },
-      plugins: [react()],
+      plugins: [react(), tailwindcss()],
       build: {
         outDir: "dist/renderer",
         emptyOutDir: true,
-      },
-      css: {
-        postcss: resolve(__dirname, "postcss.config.cjs"),
       },
     },
   };

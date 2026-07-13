@@ -36,7 +36,7 @@ export const parseEndpoint = (rawEndpoint: string | undefined) => {
   try {
     url = new URL(normalized);
   } catch (error) {
-    throw new Error(`Invalid S3 endpoint URL. Received "${value}".`);
+    throw new Error(`Invalid S3 endpoint URL. Received "${value}".`, { cause: error });
   }
 
   const useSSL = url.protocol === "https:";

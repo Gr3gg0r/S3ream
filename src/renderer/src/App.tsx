@@ -1571,7 +1571,7 @@ function App() {
       {isBulkUrlModalOpen && (
         <div
           ref={bulkUrlDialogRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Bulk URLs"
@@ -1624,7 +1624,7 @@ function App() {
       {isLogOpen && (
         <div
           ref={logDialogRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Live job log"

@@ -11,7 +11,7 @@ docker compose up -d   # RustFS (local S3) + Toxiproxy for slow-network testing
 pnpm run dev
 ```
 
-Node ≥ 18.16 and pnpm 8 are required. See `README.md` for environment
+Node ^20.19.0 or ≥ 22.12.0 and pnpm 8 are required. See `README.md` for environment
 variables and the Docker stack details.
 
 ## Before opening a PR

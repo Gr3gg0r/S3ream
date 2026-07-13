@@ -193,7 +193,7 @@ const ensureExecutable = async (binaryPath: string) => {
   try {
     await fs.access(binaryPath, fsConstants.F_OK);
   } catch (error) {
-    throw new Error(`Binary not found at ${binaryPath}`);
+    throw new Error(`Binary not found at ${binaryPath}`, { cause: error });
   }
 
   if (isWindows) {
@@ -204,7 +204,9 @@ const ensureExecutable = async (binaryPath: string) => {
     await fs.chmod(binaryPath, 0o755);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Unable to set execute permission on ${binaryPath}. ${message}`);
+    throw new Error(`Unable to set execute permission on ${binaryPath}. ${message}`, {
+      cause: error,
+    });
   }
 };
 
@@ -272,7 +274,9 @@ export const probeVideoMetadata = async (
       const hint = isWindows
         ? "Run the application as Administrator once to allow FFprobe to execute."
         : `Ensure the FFprobe binary at ${ffprobePath} has execute permission (chmod +x).`;
-      throw new Error(`FFprobe could not start because permission was denied. ${hint}`);
+      throw new Error(`FFprobe could not start because permission was denied. ${hint}`, {
+        cause: error,
+      });
     }
     console.warn("Failed to read metadata with ffprobe:", error);
     return { durationMs: null, width: null, height: null, frameRate: null };

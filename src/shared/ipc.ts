@@ -164,11 +164,7 @@ export interface FolderScanResult {
 }
 
 export type QueueControlAction =
-  | "pause"
-  | "resume"
-  | "cancel-current"
-  | "cancel-remaining"
-  | "clear-completed";
+  "pause" | "resume" | "cancel-current" | "cancel-remaining" | "clear-completed";
 
 export interface HistoryQuery {
   search?: string;
