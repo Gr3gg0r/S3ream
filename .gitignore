@@ -15,3 +15,14 @@ node_modules
 .env.production
 coverage
 *.tsbuildinfo
+
+# Build artifacts
+release/
+
+# Stray Yarn artifacts (project uses pnpm)
+.yarn/
+.pnp.loader.mjs
+yarn.lock
+
+# Playwright MCP QA artifacts
+.playwright-mcp/

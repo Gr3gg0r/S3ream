@@ -1,11 +1,11 @@
 services:
   toxiproxy:
-    image: ghcr.io/shopify/toxiproxy
+    image: ghcr.io/shopify/toxiproxy:2.12.0
     container_name: toxiproxy
     command: ["-host=0.0.0.0"]
     ports:
-      - "8474:8474"   # Toxiproxy REST API
-      - "8666:8666"   # Proxied S3 endpoint (slow path)
+      - "8474:8474" # Toxiproxy REST API
+      - "8666:8666" # Proxied S3 endpoint (slow path)
 
   toxiproxy-bootstrap:
     image: curlimages/curl:8.10.1
@@ -15,51 +15,57 @@ services:
     environment:
       TOXIPROXY_HOST: toxiproxy:8474
       TOXIPROXY_LISTEN: 0.0.0.0:8666
-      TOXIPROXY_UPSTREAM: minio:9000
+      TOXIPROXY_UPSTREAM: rustfs:9000
       TOXIC_LATENCY_MS: 400
       TOXIC_JITTER_MS: 120
       TOXIC_BANDWIDTH_BPS: 50000
-      TOXIPROXY_NAME: minio_s3
+      TOXIPROXY_NAME: rustfs_s3
     volumes:
       - ./scripts/bootstrap-toxiproxy.sh:/bootstrap.sh:ro
     entrypoint: ["/bin/sh", "/bootstrap.sh"]
     restart: "no"
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: server /data --console-address ":9001"
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: rustfs
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${RUSTFS_API_PORT:-9000}:9000" # S3-compatible API
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001" # Console UI
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
-      MINIO_BUCKET: ${S3_BUCKET_NAME:-media}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
     volumes:
-      - minio-data:/data
+      - rustfs-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
-  minio-bootstrap:
-    image: quay.io/minio/mc:latest
+  s3-bootstrap:
+    image: amazon/aws-cli:latest
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
-      MINIO_BUCKET: ${S3_BUCKET_NAME:-media}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-rustfsadmin}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-rustfsadmin}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      AWS_EC2_METADATA_DISABLED: "true"
+      S3_BUCKET: ${S3_BUCKET_NAME:-media}
     entrypoint: >
       /bin/sh -c "
-        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-        mc mb -p local/$${MINIO_BUCKET} || true;
-        mc anonymous set download local/$${MINIO_BUCKET} || true;
+        aws --endpoint-url http://rustfs:9000 s3 mb s3://$${S3_BUCKET} 2>/dev/null || true;
+        printf '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::%s/*\"]}]}' $${S3_BUCKET} > /tmp/policy.json;
+        aws --endpoint-url http://rustfs:9000 s3api put-bucket-policy --bucket $${S3_BUCKET} --policy file:///tmp/policy.json || true;
       "
     restart: "no"
 
 volumes:
-  minio-data:
+  rustfs-data:
     driver: local
