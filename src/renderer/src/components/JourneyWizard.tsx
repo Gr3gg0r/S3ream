@@ -41,6 +41,7 @@ export const JourneyWizard = () => {
   const [viewEndpoint, setViewEndpoint] = useState("");
   const [bucketUrl, setBucketUrl] = useState("");
   const [pathStyle, setPathStyle] = useState(true);
+  const [uploadConcurrency, setUploadConcurrency] = useState(4);
   const [accessKeyId, setAccessKeyId] = useState("");
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [settings, setSettings] = useState<AppSettingsView | null>(null);
@@ -66,6 +67,7 @@ export const JourneyWizard = () => {
           setViewEndpoint(view.s3.viewEndpoint);
           setBucketUrl(view.s3.bucketUrl);
           setPathStyle(view.s3.pathStyle);
+          setUploadConcurrency(view.s3.uploadConcurrency);
         }
       })
       .catch(() => {
@@ -151,6 +153,7 @@ export const JourneyWizard = () => {
           bucketUrl,
           viewEndpoint: viewEndpoint.trim(),
           pathStyle,
+          uploadConcurrency,
           accessKeyId: accessKeyId.trim(),
           secretAccessKey: secretAccessKey.trim(),
         });
@@ -447,19 +450,37 @@ export const JourneyWizard = () => {
                     />
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="jw-view-endpoint" className="linear-label">
-                    Public/View base URL (optional)
-                  </label>
-                  <input
-                    id="jw-view-endpoint"
-                    type="text"
-                    value={viewEndpoint}
-                    onChange={(event) => setViewEndpoint(event.target.value)}
-                    placeholder="https://cdn.example.com"
-                    className="linear-input"
-                    autoComplete="off"
-                  />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="jw-view-endpoint" className="linear-label">
+                      Public/View base URL (optional)
+                    </label>
+                    <input
+                      id="jw-view-endpoint"
+                      type="text"
+                      value={viewEndpoint}
+                      onChange={(event) => setViewEndpoint(event.target.value)}
+                      placeholder="https://cdn.example.com"
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="jw-upload-concurrency" className="linear-label">
+                      Upload concurrency
+                    </label>
+                    <input
+                      id="jw-upload-concurrency"
+                      type="number"
+                      min={1}
+                      max={16}
+                      value={uploadConcurrency}
+                      onChange={(event) => setUploadConcurrency(Number(event.target.value))}
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                    <span className="linear-hint">Parallel upload workers (1–16).</span>
+                  </div>
                 </div>
                 <label htmlFor="jw-path-style" className="flex items-center gap-2 text-[13px]">
                   <input

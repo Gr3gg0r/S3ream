@@ -10,6 +10,7 @@ export interface ResolvedS3Settings {
   bucketUrl: string;
   viewEndpoint: string;
   pathStyle: boolean;
+  uploadConcurrency: number;
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -27,6 +28,16 @@ interface StoredSettings {
 }
 
 const SETTINGS_FILENAME = "settings.json";
+
+export const DEFAULT_UPLOAD_CONCURRENCY = 4;
+export const MAX_UPLOAD_CONCURRENCY = 16;
+
+export const clampUploadConcurrency = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_UPLOAD_CONCURRENCY;
+  }
+  return Math.min(MAX_UPLOAD_CONCURRENCY, Math.max(1, Math.round(value)));
+};
 
 /**
  * Persists the user's S3 connection settings to `settings.json` in the
@@ -124,6 +135,8 @@ export class SettingsService {
     const { secrets, ...rest } = this.settings.s3;
     return {
       ...rest,
+      // Stores written before uploadConcurrency existed fall back to the default.
+      uploadConcurrency: rest.uploadConcurrency ?? DEFAULT_UPLOAD_CONCURRENCY,
       accessKeyId: this.decrypt(secrets.accessKeyId, secrets.format),
       secretAccessKey: this.decrypt(secrets.secretAccessKey, secrets.format),
     };
@@ -140,6 +153,7 @@ export class SettingsService {
             bucketUrl: resolved.bucketUrl,
             viewEndpoint: resolved.viewEndpoint,
             pathStyle: resolved.pathStyle,
+            uploadConcurrency: resolved.uploadConcurrency,
             hasAccessKey: resolved.accessKeyId.length > 0,
             hasSecretKey: resolved.secretAccessKey.length > 0,
           }
@@ -163,6 +177,7 @@ export class SettingsService {
       bucketUrl: input.bucketUrl.trim(),
       viewEndpoint: input.viewEndpoint.trim(),
       pathStyle: input.pathStyle,
+      uploadConcurrency: clampUploadConcurrency(input.uploadConcurrency),
       accessKeyId,
       secretAccessKey,
     };
@@ -174,6 +189,7 @@ export class SettingsService {
         bucketUrl: resolved.bucketUrl,
         viewEndpoint: resolved.viewEndpoint,
         pathStyle: resolved.pathStyle,
+        uploadConcurrency: resolved.uploadConcurrency,
         secrets: {
           format,
           accessKeyId: this.encrypt(accessKeyId, format),

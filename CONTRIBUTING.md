@@ -41,8 +41,9 @@ Guidelines:
   `src/main/index.ts` (handler), `src/preload/index.ts` (bridge), and the
   renderer consumer. Never expose raw `ipcRenderer` or Node-capable APIs
   through `window.api`.
-- **Secrets**: never commit `.env` files or credentials. Only `.env.example`
-  and `.env.slow` are tracked, and they carry local-dev defaults only.
+- **Secrets**: never commit `.env` files or credentials. Only `.env.slow` is
+  tracked, and it carries local-dev defaults only. End users configure
+  everything in the app's settings UI — there is no `.env.example` to copy.
 
 `AGENTS.md` documents the architecture, conventions, and common tasks in
 detail — read it before non-trivial changes.

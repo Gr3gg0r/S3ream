@@ -21,6 +21,7 @@ const baseInput: S3SettingsInput = {
   bucketUrl: "http://localhost:9000/videos",
   viewEndpoint: "",
   pathStyle: true,
+  uploadConcurrency: 8,
   accessKeyId: "AKIAEXAMPLE",
   secretAccessKey: "super-secret-value",
 };
@@ -52,6 +53,24 @@ describe("SettingsService", () => {
     vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
     const reloaded = new SettingsService();
     expect(reloaded.getS3Settings()).toEqual(resolved);
+  });
+
+  it("clamps uploadConcurrency into the 1..16 range and defaults garbage", () => {
+    const { service } = createService();
+    expect(service.save({ ...baseInput, uploadConcurrency: 99 }).uploadConcurrency).toBe(16);
+    expect(service.save({ ...baseInput, uploadConcurrency: 0 }).uploadConcurrency).toBe(1);
+    expect(service.save({ ...baseInput, uploadConcurrency: Number.NaN }).uploadConcurrency).toBe(4);
+  });
+
+  it("defaults uploadConcurrency for stores written before it existed", () => {
+    const { service, dir, file } = createService();
+    service.save(baseInput);
+    const stored = JSON.parse(readFileSync(file, "utf-8"));
+    delete stored.s3.uploadConcurrency;
+    writeFileSync(file, JSON.stringify(stored), "utf-8");
+    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    const reloaded = new SettingsService();
+    expect(reloaded.getS3Settings()?.uploadConcurrency).toBe(4);
   });
 
   it("masks secrets in the renderer-facing view", () => {

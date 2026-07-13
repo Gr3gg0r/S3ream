@@ -10,6 +10,7 @@ import {
   buildPublicUrl,
   ensureBucket,
   getActiveBucketName,
+  getActiveUploadConcurrency,
   getMinioClient,
   sanitizeObjectKey,
 } from "./minioClient";
@@ -64,7 +65,16 @@ const UPLOAD_START_PERCENT = PROCESSING_PERCENT_SHARE + 5;
 const DEFAULT_UPLOAD_CONCURRENCY = 4;
 const MAX_UPLOAD_CONCURRENCY = 16;
 
+/**
+ * Parallel upload workers. The value saved in the app's settings UI wins;
+ * the S3_UPLOAD_CONCURRENCY env var remains as a fallback for the dev:*
+ * presets, then the default of 4. Always clamped to 1..16.
+ */
 export const getUploadConcurrency = (): number => {
+  const configured = getActiveUploadConcurrency();
+  if (configured !== null && Number.isFinite(configured)) {
+    return Math.min(MAX_UPLOAD_CONCURRENCY, Math.max(1, Math.round(configured)));
+  }
   const raw = process.env.S3_UPLOAD_CONCURRENCY;
   if (!raw) {
     return DEFAULT_UPLOAD_CONCURRENCY;

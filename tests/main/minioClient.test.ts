@@ -132,6 +132,7 @@ describe("configureS3 overrides", () => {
     bucketUrl: "https://override-cdn.example.com",
     viewEndpoint: "",
     pathStyle: false,
+    uploadConcurrency: 6,
     accessKeyId: "override-key",
     secretAccessKey: "override-secret",
   };
@@ -175,5 +176,15 @@ describe("configureS3 overrides", () => {
     const second = mod.getMinioClient();
     expect(second).not.toBe(first);
     mod.configureS3(null);
+  });
+
+  it("exposes the saved upload concurrency, then null when cleared", async () => {
+    vi.resetModules();
+    const mod = await import("../../src/main/services/minioClient");
+    expect(mod.getActiveUploadConcurrency()).toBeNull();
+    mod.configureS3(override);
+    expect(mod.getActiveUploadConcurrency()).toBe(6);
+    mod.configureS3(null);
+    expect(mod.getActiveUploadConcurrency()).toBeNull();
   });
 });

@@ -165,9 +165,9 @@ Vitest 4 is configured in `vitest.config.ts`:
 
 ## Environment Configuration
 
-The main process loads `dotenv/config` at startup, so `.env` variables are available in the main process and in `electron.vite.config.ts` (via `loadEnv`).
+**End users configure everything in the app's settings UI** — endpoint, region, bucket, credentials, path-style, public/view base URLs, and upload concurrency all live in `settings.json` inside the Electron `userData` directory (see `settingsService.ts`; secrets are encrypted via `safeStorage`). There is no `.env.example` to copy and no env-file setup for running the app.
 
-Copy `.env.example` to `.env` and adjust values:
+Environment variables still exist as a **dev-preset fallback**: the main process loads `dotenv/config` at startup, and the `dev:*` scripts inject preset files via `dotenv-cli` (e.g. `pnpm run dev:slow` loads `.env.slow` for the Toxiproxy endpoint). Saved UI settings always win over env vars (`configureS3` in `minioClient.ts`; `getUploadConcurrency` in `videoPipeline.ts`).
 
 | Variable                     | Purpose                                                    |
 | ---------------------------- | ---------------------------------------------------------- |
@@ -305,7 +305,7 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 2. **No remote content**: The renderer does not load remote scripts or iframes.
 3. **Context isolation**: Preload runs in an isolated context; only `window.api` is exposed.
 4. **Sandbox enabled**: `sandbox: true` — the preload must stick to `ipcRenderer`/`contextBridge` only. Never expose raw `ipcRenderer` or Node-capable APIs through `window.api`.
-5. **S3 credentials**: Stored in `.env` files. All `.env*` files are gitignored except `.env.example` and `.env.slow`, which are intentionally tracked and contain only local RustFS/Toxiproxy defaults. Never commit credentials.
+5. **S3 credentials**: Entered in the app's settings UI and stored in `settings.json` under the Electron `userData` directory, encrypted via `safeStorage` when the OS keychain is available. Env vars are dev presets only: all `.env*` files are gitignored except `.env.slow`, which is intentionally tracked and contains only local RustFS/Toxiproxy defaults. Never commit credentials.
 6. **Bucket policy**: The app automatically applies a public-read policy to the target bucket. Ensure this is acceptable for your deployment.
 7. **Temp files**: HLS artifacts are written to `os.tmpdir()` and cleaned up on every job exit path; any orphans from a crash are swept at the next startup.
 

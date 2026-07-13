@@ -4,7 +4,7 @@ import type { ResolvedS3Settings } from "./settingsService";
 /**
  * Runtime configuration override, applied when the user saves connection
  * settings in the app. Takes precedence over environment variables for any
- * non-empty field; `.env` remains the fallback/bootstrap.
+ * non-empty field; env vars remain as the fallback for the dev:* presets.
  */
 let configOverride: ResolvedS3Settings | null = null;
 
@@ -12,6 +12,10 @@ export const configureS3 = (settings: ResolvedS3Settings | null) => {
   configOverride = settings;
   cachedClient = null;
 };
+
+/** Upload worker count from saved settings; null when unset so env/default applies. */
+export const getActiveUploadConcurrency = (): number | null =>
+  configOverride?.uploadConcurrency ?? null;
 
 const resolveValue = (overrideValue: string | undefined, envValue: string | undefined) => {
   if (overrideValue && overrideValue.length > 0) {

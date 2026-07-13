@@ -15,6 +15,7 @@ import {
   parseFrameRate,
   probeVideoMetadata,
 } from "../../src/main/services/videoPipeline";
+import { configureS3 } from "../../src/main/services/minioClient";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -77,6 +78,22 @@ describe("parseFrameRate", () => {
 });
 
 describe("getUploadConcurrency", () => {
+  const savedSettings = {
+    endpointUrl: "http://localhost:9000",
+    region: "us-east-1",
+    bucketName: "videos",
+    bucketUrl: "",
+    viewEndpoint: "",
+    pathStyle: true,
+    uploadConcurrency: 6,
+    accessKeyId: "key",
+    secretAccessKey: "secret",
+  };
+
+  afterEach(() => {
+    configureS3(null);
+  });
+
   it("defaults to 4 when unset", () => {
     vi.stubEnv("S3_UPLOAD_CONCURRENCY", "");
     expect(getUploadConcurrency()).toBe(4);
@@ -97,6 +114,17 @@ describe("getUploadConcurrency", () => {
   it("falls back on garbage input", () => {
     vi.stubEnv("S3_UPLOAD_CONCURRENCY", "abc");
     expect(getUploadConcurrency()).toBe(4);
+  });
+
+  it("prefers the saved settings value over the environment", () => {
+    vi.stubEnv("S3_UPLOAD_CONCURRENCY", "10");
+    configureS3(savedSettings);
+    expect(getUploadConcurrency()).toBe(6);
+  });
+
+  it("clamps the saved settings value", () => {
+    configureS3({ ...savedSettings, uploadConcurrency: 99 });
+    expect(getUploadConcurrency()).toBe(16);
   });
 });
 

@@ -42,13 +42,11 @@ pnpm run build
 pnpm run preview
 ```
 
-## Environment Configuration
+## Configuration
 
-Copy `.env.example` to `.env` and update the values to match your S3-compatible object storage deployment:
+Everything is configured in the app — there are no env files to set up. In the **Simple** journey, the destination step collects your S3 connection details (endpoint, region, bucket, credentials, path-style, public/view base URLs, and upload concurrency) and saves them locally on your machine. Secrets are encrypted with your OS keychain when available; nothing leaves the app except uploads to the endpoint you configure.
 
-```bash
-cp .env.example .env
-```
+For development, the `dev:*` scripts can preload settings from env presets (e.g. `pnpm run dev:slow` loads `.env.slow` for the Toxiproxy endpoint). Saved UI settings always take precedence over env vars.
 
 | Variable                     | Description                                                                          |
 | ---------------------------- | ------------------------------------------------------------------------------------ |
@@ -75,7 +73,7 @@ The instance exposes:
 - S3-compatible API on `http://localhost:9000`
 - Console UI on `http://localhost:9001`
 
-Credentials default to `rustfsadmin:rustfsadmin`. Update them in your `.env` file and Docker Compose if needed. An optional Toxiproxy sidecar adds a latency/bandwidth-limited S3 endpoint on `http://localhost:8666` for slow-network testing (`pnpm run dev:slow`).
+Credentials default to `rustfsadmin:rustfsadmin` — enter them in the app's destination step (or change them in `docker-compose.yml` if needed). An optional Toxiproxy sidecar adds a latency/bandwidth-limited S3 endpoint on `http://localhost:8666` for slow-network testing (`pnpm run dev:slow`).
 
 ## UI & Theming
 
