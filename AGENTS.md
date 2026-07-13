@@ -112,7 +112,7 @@ The app has three views, switched from the header:
 
 ## Build & Development Commands
 
-All commands run through `pnpm`.
+All commands run through `pnpm`. Scripts that set `ELECTRON_RUN_AS_NODE` go through `cross-env` so they work in cmd.exe on Windows as well as POSIX shells — keep that prefix when adding scripts with inline env vars.
 
 ```bash
 # Install dependencies
