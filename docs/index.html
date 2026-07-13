@@ -14,12 +14,12 @@
       content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://gr3gg0r.github.io/s3ream/" />
+    <meta property="og:url" content="https://gr3gg0r.github.io/S3ream/" />
     <meta property="og:site_name" content="S3ream" />
     <meta property="og:locale" content="en_US" />
     <meta
       property="og:image"
-      content="https://gr3gg0r.github.io/s3ream/screenshots/simple-journey-light.png"
+      content="https://gr3gg0r.github.io/S3ream/screenshots/simple-journey-light.png"
     />
     <meta property="og:image:width" content="2800" />
     <meta property="og:image:height" content="1760" />
@@ -35,12 +35,12 @@
     />
     <meta
       name="twitter:image"
-      content="https://gr3gg0r.github.io/s3ream/screenshots/simple-journey-light.png"
+      content="https://gr3gg0r.github.io/S3ream/screenshots/simple-journey-light.png"
     />
     <meta name="author" content="Shahfiq Shah" />
     <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
-    <link rel="canonical" href="https://gr3gg0r.github.io/s3ream/" />
+    <link rel="canonical" href="https://gr3gg0r.github.io/S3ream/" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -49,10 +49,10 @@
         "applicationCategory": "MultimediaApplication",
         "operatingSystem": "macOS, Windows, Linux",
         "description": "Desktop app that converts video files to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required.",
-        "url": "https://gr3gg0r.github.io/s3ream/",
+        "url": "https://gr3gg0r.github.io/S3ream/",
         "codeRepository": "https://github.com/Gr3gg0r/S3ream",
         "downloadUrl": "https://github.com/Gr3gg0r/S3ream/releases",
-        "softwareVersion": "0.1.0",
+        "softwareVersion": "1.0.0",
         "license": "https://opensource.org/license/mit",
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -799,8 +799,11 @@
             Build from source in a minute
           </h2>
           <p class="mt-3 text-base-content/70">
-            Packaged binaries for macOS, Windows, and Linux land on GitHub Releases with v0.1.0.
-            Until then, building it yourself takes a minute.
+            Packaged binaries are published on
+            <a data-repo-releases href="#" target="_blank" rel="noopener" class="link"
+              >GitHub Releases</a
+            >
+            as platforms land. Building from source takes a minute:
           </p>
         </div>
         <div class="mx-auto max-w-2xl">
@@ -878,6 +881,9 @@
       });
       document.querySelectorAll("[data-repo-notice]").forEach((el) => {
         el.href = GITHUB_REPO + "/blob/main/NOTICE";
+      });
+      document.querySelectorAll("[data-repo-releases]").forEach((el) => {
+        el.href = GITHUB_REPO + "/releases";
       });
 
       // Theme switching — mirrors the app's useTheme hook and localStorage key.
