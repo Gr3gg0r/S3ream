@@ -52,7 +52,12 @@ The app has three views, switched from the header:
 ├── .prototools                 # proto toolchain lock: Node 22.23.1, pnpm 8.15.4
 ├── build/                      # electron-builder resources: icon.png (1024 master), icon.icns, icon.ico
 ├── docker-compose.yml          # RustFS + Toxiproxy stack for local dev
-├── docs/screenshots/           # README screenshots (regenerate from the running app when the UI changes)
+├── docs/                       # GitHub Pages landing page (see Deployment Notes)
+│   ├── index.html              # Self-contained page; served at /<user>.github.io/s3ream/
+│   ├── src/landing.css         # Tailwind 4 + DaisyUI 5 source (themes mirror the app)
+│   ├── assets/landing.css      # Built output (committed) — rebuild with `pnpm run docs:css`
+│   ├── fonts/                  # Self-hosted Inter woff2 (copied from @fontsource/inter)
+│   └── screenshots/            # README + landing screenshots (regenerate from the running app)
 ├── electron.vite.config.ts     # Build configuration for main/preload/renderer
 ├── NOTICE                      # Third-party attributions incl. the FFmpeg GPL-3.0 notice
 ├── package.json
@@ -141,6 +146,9 @@ pnpm run format          # prettier --write .
 pnpm run test            # Vitest unit + renderer suites (no external services)
 pnpm run test:watch      # Watch mode
 pnpm run test:integration  # Full suite: real FFmpeg + live RustFS (needs docker compose up -d)
+
+# Landing page (docs/) — rebuild after editing docs/index.html or docs/src/landing.css
+pnpm run docs:css          # tailwindcss -i docs/src/landing.css -o docs/assets/landing.css --minify
 ```
 
 ## Testing
@@ -338,3 +346,4 @@ The `<html>` tag in `index.html` defaults to `data-theme="s3ream"`, and `useThem
 - The `@ffmpeg-installer`/`@ffprobe-installer` platform packages carry no `os`/`cpu` constraints, so pnpm installs every variant. They are declared as `optionalDependencies` (electron-builder only bundles declared deps on pnpm 10+), and `scripts/prune-platform-binaries.cjs` (an `afterPack` hook) strips all but the target platform+arch — keep both in place or bundles double in size. When bumping the installer packages, bump the `optionalDependencies` versions to match.
 - `build/` holds the app icons used as `buildResources`: a monochrome play/stream mark matching the app palette — `icon.png` (1024px master, also used for Linux), `icon.icns` (macOS), and `icon.ico` (Windows).
 - CI runs on GitHub Actions (`.github/workflows/ci.yml`): a `check` job (lint, typecheck, unit tests, production build) and an `integration` job that brings up the RustFS Docker stack and runs `pnpm run test:integration`.
+- The landing page is `docs/index.html`, served by GitHub Pages from `docs/` on `main` at `/<user>.github.io/s3ream/` — all asset paths are relative so the project path works. It is plain HTML + a compiled stylesheet (`docs/assets/landing.css`, built from `docs/src/landing.css` via `pnpm run docs:css` — rerun after touching either, and commit the output); no other build step or CDN dependencies (Inter is self-hosted in `docs/fonts/`). The DaisyUI theme blocks and glass classes mirror `src/renderer/src/index.css` — keep the two files in sync when changing design tokens. The GitHub repo URL appears exactly once, as the `GITHUB_REPO` constant in the bottom inline script of `docs/index.html`; the og:image meta URL hardcodes the Pages origin and needs the same edit if the handle changes.

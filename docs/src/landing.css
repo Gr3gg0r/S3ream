@@ -1,0 +1,289 @@
+/*
+ * Landing page stylesheet source — built to docs/assets/landing.css via:
+ *   pnpm run docs:css
+ * Themes and glass classes mirror src/renderer/src/index.css so the site
+ * matches the app exactly. Keep the two files in sync when changing tokens.
+ */
+@import "tailwindcss";
+
+/* The page markup lives one level up from this file. */
+@source "../index.html";
+
+@plugin "daisyui";
+
+/*
+ * Themes are CSS-first in DaisyUI 5. The palette is monochrome black & white,
+ * flipped between themes — only the status colors carry hue.
+ */
+@plugin "daisyui/theme" {
+  name: "s3ream";
+  default: true;
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #fafafa;
+  --color-base-300: #e5e5e5;
+  --color-base-content: #0a0a0a;
+  --color-primary: #0a0a0a;
+  --color-primary-content: #ffffff;
+  --color-secondary: #f0f0f0;
+  --color-secondary-content: #0a0a0a;
+  --color-accent: #0a0a0a;
+  --color-accent-content: #ffffff;
+  --color-neutral: #0a0a0a;
+  --color-neutral-content: #ffffff;
+  --color-info: #4e80ee;
+  --color-info-content: #ffffff;
+  --color-success: #2da44e;
+  --color-success-content: #ffffff;
+  --color-warning: #e5a13d;
+  --color-warning-content: #0a0a0a;
+  --color-error: #e5484d;
+  --color-error-content: #ffffff;
+  --radius-box: 1rem;
+  --radius-field: 0.625rem;
+  --radius-selector: 9999px;
+  --border-field: 1px;
+}
+
+@plugin "daisyui/theme" {
+  name: "s3reamdark";
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #141414;
+  --color-base-200: #0a0a0a;
+  --color-base-300: #262626;
+  --color-base-content: #fafafa;
+  --color-primary: #fafafa;
+  --color-primary-content: #0a0a0a;
+  --color-secondary: #1f1f1f;
+  --color-secondary-content: #fafafa;
+  --color-accent: #fafafa;
+  --color-accent-content: #0a0a0a;
+  --color-neutral: #fafafa;
+  --color-neutral-content: #0a0a0a;
+  --color-info: #5e9bff;
+  --color-info-content: #0a0a0a;
+  --color-success: #46a758;
+  --color-success-content: #ffffff;
+  --color-warning: #f5a623;
+  --color-warning-content: #0a0a0a;
+  --color-error: #e5484d;
+  --color-error-content: #ffffff;
+  --radius-box: 1rem;
+  --radius-field: 0.625rem;
+  --radius-selector: 9999px;
+  --border-field: 1px;
+}
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/*
+ * Self-hosted Inter — paths resolve relative to the built file
+ * (docs/assets/landing.css), so ../fonts/ points at docs/fonts/.
+ */
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen text-base-content;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * shot.so-style gradient mesh canvas. The glass panels below need a rich
+   * background to refract — without it backdrop-filter reads as plain gray.
+   */
+  .glass-canvas {
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+  [data-theme="s3ream"] .glass-canvas {
+    background-color: #f4f4f5;
+    background-image:
+      radial-gradient(55rem 55rem at 8% -10%, rgba(10, 10, 10, 0.08), transparent 60%),
+      radial-gradient(48rem 48rem at 102% 2%, rgba(10, 10, 10, 0.05), transparent 55%),
+      radial-gradient(52rem 52rem at 85% 112%, rgba(255, 255, 255, 0.6), transparent 60%),
+      radial-gradient(42rem 42rem at -5% 95%, rgba(10, 10, 10, 0.06), transparent 55%);
+  }
+  [data-theme="s3reamdark"] .glass-canvas {
+    background-color: #08080a;
+    background-image:
+      radial-gradient(58rem 58rem at 8% -12%, rgba(255, 255, 255, 0.07), transparent 60%),
+      radial-gradient(50rem 50rem at 102% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
+      radial-gradient(54rem 54rem at 85% 112%, rgba(255, 255, 255, 0.04), transparent 60%);
+  }
+
+  /*
+   * Apple-style frosted glass panel. The .stats.linear-card variant overrides
+   * DaisyUI's solid stats background so the glass shows through.
+   */
+  .linear-card,
+  .stats.linear-card {
+    border-radius: 16px;
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+  }
+  [data-theme="s3ream"] .linear-card,
+  [data-theme="s3ream"] .stats.linear-card {
+    background-color: color-mix(in srgb, white 62%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 8px 32px rgba(31, 41, 99, 0.1),
+      0 1px 2px rgba(16, 18, 27, 0.05);
+  }
+  [data-theme="s3reamdark"] .linear-card,
+  [data-theme="s3reamdark"] .stats.linear-card {
+    background-color: rgba(22, 22, 26, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Recessed well for code insets inside glass panels. */
+  .linear-well {
+    border-radius: 10px;
+  }
+  [data-theme="s3ream"] .linear-well {
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+  [data-theme="s3reamdark"] .linear-well {
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* Segmented control — used for the theme switch, same as the app header. */
+  .linear-segmented {
+    @apply inline-flex;
+    padding: 2px;
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+  }
+  [data-theme="s3ream"] .linear-segmented {
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+  [data-theme="s3reamdark"] .linear-segmented {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .linear-segmented button {
+    @apply inline-flex items-center justify-center gap-1.5;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
+    transition:
+      background-color 120ms,
+      color 120ms;
+  }
+  .linear-segmented button[data-active="true"] {
+    color: var(--color-base-content);
+  }
+  [data-theme="s3ream"] .linear-segmented button[data-active="true"] {
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 1px 3px rgba(16, 18, 27, 0.12);
+  }
+  [data-theme="s3reamdark"] .linear-segmented button[data-active="true"] {
+    background-color: rgba(255, 255, 255, 0.14);
+  }
+
+  /* Sticky top navigation — frosted, blends into the canvas. */
+  .nav-glass {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+  [data-theme="s3ream"] .nav-glass {
+    background-color: rgba(244, 244, 245, 0.7);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  }
+  [data-theme="s3reamdark"] .nav-glass {
+    background-color: rgba(8, 8, 10, 0.7);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* Framed screenshot with an inset border radius. */
+  .shot-frame {
+    border-radius: 20px;
+    padding: 8px;
+  }
+  .shot-frame img {
+    border-radius: 12px;
+  }
+
+  .steps .step::before {
+    color: var(--color-primary-content);
+  }
+
+  .linear-mono {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+@layer utilities {
+  /*
+   * DaisyUI's steps default to inline-grid, which refuses to shrink below
+   * max-content and overflows narrow viewports. The utilities layer sorts
+   * after components, so this reliably wins: block-level + full width lets
+   * the step text wrap on mobile instead.
+   */
+  .steps {
+    display: grid;
+    width: 100%;
+  }
+}

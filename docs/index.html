@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en" data-theme="s3ream">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>S3ream — Convert video to HLS on your desktop, stream from your own S3</title>
+    <meta
+      name="description"
+      content="S3ream is a desktop app that converts video to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required."
+    />
+    <meta property="og:title" content="S3ream — Local video-to-HLS, straight to your S3 bucket" />
+    <meta
+      property="og:description"
+      content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:image"
+      content="https://shahfiq.github.io/s3ream/screenshots/simple-journey-light.png"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230A0A0A'/%3E%3Cpath d='M13 10.5v11l9-5.5z' fill='%23FAFAFA'/%3E%3C/svg%3E"
+    />
+    <script>
+      // Applies the stored theme before first paint — same logic as the app's theme-init.js.
+      (function () {
+        try {
+          var stored = window.localStorage.getItem("s3ream-theme");
+          if (stored !== "light" && stored !== "dark" && stored !== "system") stored = "system";
+          var dark =
+            stored === "dark" ||
+            (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", dark ? "s3reamdark" : "s3ream");
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="stylesheet" href="assets/landing.css" />
+  </head>
+  <body class="glass-canvas">
+    <a
+      href="#main"
+      class="btn btn-primary btn-sm sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50"
+      >Skip to content</a
+    >
+
+    <header class="nav-glass">
+      <nav class="navbar mx-auto min-h-14 max-w-6xl px-5 sm:px-8">
+        <div class="navbar-start w-auto">
+          <a
+            href="#top"
+            class="flex items-center gap-2 text-lg font-semibold"
+            aria-label="S3ream home"
+          >
+            <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+              <rect width="32" height="32" rx="8" fill="var(--color-primary)" />
+              <path d="M13 10.5v11l9-5.5z" fill="var(--color-primary-content)" />
+            </svg>
+            S3ream
+          </a>
+        </div>
+        <div class="navbar-end flex-1 gap-2 sm:gap-3">
+          <div class="linear-segmented" role="group" aria-label="Color theme">
+            <button type="button" data-theme-btn="system" data-active="true" aria-pressed="true">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+              <span class="hidden sm:inline">System</span>
+            </button>
+            <button type="button" data-theme-btn="light" data-active="false" aria-pressed="false">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+                />
+              </svg>
+              <span class="hidden sm:inline">Light</span>
+            </button>
+            <button type="button" data-theme-btn="dark" data-active="false" aria-pressed="false">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+              <span class="hidden sm:inline">Dark</span>
+            </button>
+          </div>
+          <a class="btn btn-primary btn-sm" data-repo-link href="#" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+            <span class="hidden sm:inline">GitHub</span>
+          </a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="mx-auto max-w-6xl px-5 sm:px-8">
+      <!-- Hero -->
+      <section id="top" class="pt-16 pb-14 text-center sm:pt-24">
+        <div class="mb-6 flex flex-wrap justify-center gap-2">
+          <span class="badge badge-outline">Open source · MIT</span>
+          <span class="badge badge-outline">macOS · Windows · Linux</span>
+          <span class="badge badge-outline">No server required</span>
+        </div>
+        <h1
+          class="mx-auto max-w-4xl text-4xl leading-[1.1] font-bold tracking-tight sm:text-5xl lg:text-6xl"
+        >
+          Convert video to HLS on your desktop. Stream it from your own S3 bucket.
+        </h1>
+        <p class="mx-auto mt-6 max-w-2xl text-base text-base-content/70 sm:text-lg">
+          S3ream is a desktop app that turns a video file into an adaptive HLS stream — a master
+          playlist plus multiple quality renditions — encoded locally with FFmpeg and uploaded
+          straight to any S3-compatible storage. No transcoding server, no cloud service, nothing in
+          between.
+        </p>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <a class="btn btn-primary" data-repo-link href="#" target="_blank" rel="noopener">
+            View on GitHub
+          </a>
+          <a class="btn btn-outline" href="#how">How it works</a>
+        </div>
+        <p class="mt-6 text-sm text-base-content/50">
+          Works with AWS S3 · Cloudflare R2 · Backblaze B2 · RustFS · MinIO
+        </p>
+      </section>
+
+      <!-- Screenshots -->
+      <section class="pb-16" aria-label="Screenshots">
+        <div class="mb-5 flex justify-center">
+          <div role="tablist" aria-label="App views" class="tabs tabs-box">
+            <button
+              role="tab"
+              class="tab tab-active"
+              id="tab-simple"
+              aria-controls="shot-simple"
+              aria-selected="true"
+              data-shot="shot-simple"
+            >
+              Simple journey
+            </button>
+            <button
+              role="tab"
+              class="tab"
+              id="tab-advanced"
+              aria-controls="shot-advanced"
+              aria-selected="false"
+              tabindex="-1"
+              data-shot="shot-advanced"
+            >
+              Advanced
+            </button>
+            <button
+              role="tab"
+              class="tab"
+              id="tab-history"
+              aria-controls="shot-history"
+              aria-selected="false"
+              tabindex="-1"
+              data-shot="shot-history"
+            >
+              History
+            </button>
+          </div>
+        </div>
+        <div class="linear-card shot-frame mx-auto max-w-5xl">
+          <figure role="tabpanel" id="shot-simple" aria-labelledby="tab-simple">
+            <img
+              src="screenshots/simple-journey-light.png"
+              width="2800"
+              height="1760"
+              decoding="async"
+              alt="The Simple journey wizard: a drop zone for a video file, rendition quality picker, and destination choice."
+            />
+            <figcaption class="mt-3 mb-1 text-center text-sm text-base-content/60">
+              The Simple journey — drop a video, pick renditions, choose a destination.
+            </figcaption>
+          </figure>
+          <figure role="tabpanel" id="shot-advanced" aria-labelledby="tab-advanced" hidden>
+            <img
+              src="screenshots/advanced-single-light.png"
+              width="2800"
+              height="1760"
+              loading="lazy"
+              decoding="async"
+              alt="The Advanced view running a single-file conversion with live progress and logs."
+            />
+            <figcaption class="mt-3 mb-1 text-center text-sm text-base-content/60">
+              Advanced mode — single-file conversion with live progress, or batch a whole folder.
+            </figcaption>
+          </figure>
+          <figure role="tabpanel" id="shot-history" aria-labelledby="tab-history" hidden>
+            <img
+              src="screenshots/history-dark.png"
+              width="2800"
+              height="1760"
+              loading="lazy"
+              decoding="async"
+              alt="The History view listing past jobs with status filters, search, and manifest URLs."
+            />
+            <figcaption class="mt-3 mb-1 text-center text-sm text-base-content/60">
+              History — every job logged, searchable, with manifest URLs ready to copy.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Key facts -->
+      <section class="pb-20" aria-label="Key facts">
+        <div class="stats stats-vertical linear-card w-full md:stats-horizontal">
+          <div class="stat">
+            <div class="stat-value text-3xl">0</div>
+            <div class="stat-title">servers to run</div>
+            <div class="stat-desc">FFmpeg does the work on your machine</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value text-3xl">240p–4K</div>
+            <div class="stat-title">rendition ladder</div>
+            <div class="stat-desc">profiles taller than the source are skipped</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value text-3xl">6s</div>
+            <div class="stat-title">HLS segments</div>
+            <div class="stat-desc">x264 + AAC, master playlist included</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value text-3xl">100%</div>
+            <div class="stat-title">local credentials</div>
+            <div class="stat-desc">encrypted with your OS keychain</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section id="how" class="pb-20" aria-labelledby="how-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            How it works
+          </p>
+          <h2 id="how-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            From file to stream in one pass
+          </h2>
+          <p class="mt-3 text-base-content/70">
+            Everything happens on your machine. S3ream only talks to the S3 endpoint you configure.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <div class="linear-card p-6 sm:p-8">
+            <ul class="steps steps-vertical">
+              <li class="step step-primary">
+                <div class="py-1 text-left">
+                  <h3 class="font-semibold">Probe</h3>
+                  <p class="text-sm text-base-content/70">
+                    FFprobe reads the source's resolution, duration, and frame rate.
+                  </p>
+                </div>
+              </li>
+              <li class="step step-primary">
+                <div class="py-1 text-left">
+                  <h3 class="font-semibold">Encode</h3>
+                  <p class="text-sm text-base-content/70">
+                    FFmpeg renders each chosen rendition to x264 video and AAC audio with 6-second
+                    HLS segments.
+                  </p>
+                </div>
+              </li>
+              <li class="step step-primary">
+                <div class="py-1 text-left">
+                  <h3 class="font-semibold">Manifest</h3>
+                  <p class="text-sm text-base-content/70">
+                    A master.m3u8 ties the renditions together with bandwidth, resolution, frame
+                    rate, and codecs.
+                  </p>
+                </div>
+              </li>
+              <li class="step step-primary">
+                <div class="py-1 text-left">
+                  <h3 class="font-semibold">Upload</h3>
+                  <p class="text-sm text-base-content/70">
+                    A worker pool streams every playlist and segment to your bucket — then temp
+                    files are cleaned up automatically.
+                  </p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="mb-2 text-sm font-medium text-base-content/70">What lands in your bucket</p>
+            <div class="mockup-code text-sm">
+              <pre data-prefix=""><code>my-bucket/videos/promo-night/</code></pre>
+              <pre data-prefix=""><code>├── master.m3u8      ← the URL you play</code></pre>
+              <pre data-prefix=""><code>├── 1080p/index.m3u8 + segment-*.ts</code></pre>
+              <pre data-prefix=""><code>├── 720p/index.m3u8  + segment-*.ts</code></pre>
+              <pre data-prefix=""><code>└── 480p/index.m3u8  + segment-*.ts</code></pre>
+            </div>
+            <p class="mt-3 text-sm text-base-content/60">
+              Serve <code class="linear-mono">master.m3u8</code> from your bucket URL or CDN — it
+              plays in Safari, hls.js, and VLC out of the box.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- The Simple journey -->
+      <section class="pb-20" aria-labelledby="journey-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            The Simple journey
+          </p>
+          <h2 id="journey-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            Three steps to a stream
+          </h2>
+          <p class="mt-3 text-base-content/70">
+            The default wizard mirrors how you'd think about the job — no FFmpeg flags, no S3
+            jargon.
+          </p>
+        </div>
+        <div class="linear-card p-6 sm:p-10">
+          <ul class="steps steps-vertical w-full lg:steps-horizontal">
+            <li class="step step-primary">
+              <div class="mx-auto mt-2 max-w-xs">
+                <h3 class="font-semibold">Drop a video</h3>
+                <p class="mt-1 text-sm text-base-content/70">
+                  MP4, MOV, MKV, AVI, M4V, or WEBM — drag it onto the drop zone or browse.
+                </p>
+              </div>
+            </li>
+            <li class="step step-primary">
+              <div class="mx-auto mt-2 max-w-xs">
+                <h3 class="font-semibold">Pick your renditions</h3>
+                <p class="mt-1 text-sm text-base-content/70">
+                  Choose the output qualities, 240p through 4K. Profiles taller than your source are
+                  skipped automatically.
+                </p>
+              </div>
+            </li>
+            <li class="step step-primary">
+              <div class="mx-auto mt-2 max-w-xs">
+                <h3 class="font-semibold">Choose a destination</h3>
+                <p class="mt-1 text-sm text-base-content/70">
+                  Your S3 endpoint with an access key and secret, or a plain local folder.
+                </p>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <p class="mt-6 text-center text-base-content/70">
+          Hit Convert, watch live progress, then grab the manifest URL from History. Need more
+          control? The Advanced view batches a whole folder with configurable concurrency.
+        </p>
+      </section>
+
+      <!-- Features -->
+      <section class="pb-20" aria-labelledby="features-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            What you get
+          </p>
+          <h2 id="features-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            A converter and an uploader — nothing else to run
+          </h2>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+            <h3 class="mt-3 font-semibold">Encodes locally</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              Bundled FFmpeg and FFprobe do the work on your machine. Your video never touches a
+              third-party server.
+            </p>
+          </article>
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 2l9 5-9 5-9-5 9-5z" />
+              <path d="M3 12l9 5 9-5M3 17l9 5 9-5" />
+            </svg>
+            <h3 class="mt-3 font-semibold">True adaptive HLS</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              A proper master playlist with BANDWIDTH, RESOLUTION, FRAME-RATE, and CODECS — not a
+              single-quality re-encode.
+            </p>
+          </article>
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+              <path d="M12 12v6M9.5 15.5L12 18l2.5-2.5" />
+            </svg>
+            <h3 class="mt-3 font-semibold">Any S3-compatible endpoint</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              Custom endpoint URL with path-style support for self-hosted stores. Tested against AWS
+              S3, Cloudflare R2, Backblaze B2, RustFS, and MinIO.
+            </p>
+          </article>
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+              />
+            </svg>
+            <h3 class="mt-3 font-semibold">Folder batch mode</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              Scan a folder, queue every video, and process with configurable concurrency (1–16).
+              Pause, resume, or cancel anytime.
+            </p>
+          </article>
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+            <h3 class="mt-3 font-semibold">Secrets stay on your machine</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              Access keys are encrypted at rest with the OS keychain (Electron safeStorage) and
+              never leave the main process.
+            </p>
+          </article>
+          <article class="linear-card p-6">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+            <h3 class="mt-3 font-semibold">History &amp; dedupe</h3>
+            <p class="mt-1 text-sm text-base-content/70">
+              Every job is logged and searchable. Re-adding a finished file is skipped
+              automatically, and manifest URLs copy in bulk.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Scope: what it is and isn't -->
+      <section class="pb-20" aria-labelledby="scope-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            Bring your own bucket
+          </p>
+          <h2 id="scope-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            Clear about what it is — and what it isn't
+          </h2>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="linear-card p-6 sm:p-8">
+            <h3 class="flex items-center gap-2 text-lg font-semibold">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              S3ream is
+            </h3>
+            <ul class="mt-3 space-y-2 text-sm text-base-content/80">
+              <li>
+                A desktop app you run when you need to convert — no daemon, no server to maintain.
+              </li>
+              <li>A one-way pipeline: video in, HLS stream out, uploaded to storage you own.</li>
+              <li>Free and open source (MIT), with FFmpeg bundled.</li>
+            </ul>
+          </div>
+          <div class="linear-card p-6 sm:p-8">
+            <h3 class="flex items-center gap-2 text-lg font-semibold">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+              S3ream isn't
+            </h3>
+            <ul class="mt-3 space-y-2 text-sm text-base-content/80">
+              <li>Not a video host or CDN — you bring the bucket and serve the files your way.</li>
+              <li>Not a SaaS — nothing is uploaded anywhere except your own endpoint.</li>
+              <li>Not a live-streaming tool — it converts recorded files to on-demand HLS.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quickstart -->
+      <section id="quickstart" class="pb-20" aria-labelledby="qs-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            Quickstart
+          </p>
+          <h2 id="qs-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            Build from source in a minute
+          </h2>
+          <p class="mt-3 text-base-content/70">
+            Packaged binaries for macOS, Windows, and Linux land on GitHub Releases with v0.1.0.
+            Until then, building it yourself takes a minute.
+          </p>
+        </div>
+        <div class="mx-auto max-w-2xl">
+          <div class="mockup-code text-sm">
+            <pre
+              data-prefix="$"
+            ><code>git clone https://github.com/<span data-repo-slug>shahfiq/S3ream</span>.git</code></pre>
+            <pre data-prefix="$"><code>cd S3ream</code></pre>
+            <pre data-prefix="$"><code>pnpm install</code></pre>
+            <pre
+              data-prefix="$"
+            ><code>pnpm run dev      <span class="opacity-60"># run the app</span></code></pre>
+            <pre
+              data-prefix="$"
+            ><code>pnpm run dist     <span class="opacity-60"># package for your OS</span></code></pre>
+          </div>
+          <p class="mt-3 text-center text-sm text-base-content/60">
+            Requires Node 20.19+ and pnpm 8.15.4 — both pinned in
+            <code class="linear-mono">.prototools</code> for proto users. macOS dmg/zip · Windows
+            nsis/portable · Linux AppImage/deb.
+          </p>
+          <div class="mt-6 flex justify-center gap-3">
+            <a class="btn btn-primary" data-repo-link href="#" target="_blank" rel="noopener">
+              View on GitHub
+            </a>
+            <a class="btn btn-outline" data-repo-notice href="#" target="_blank" rel="noopener">
+              Read the NOTICE
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tech -->
+      <section class="pb-16" aria-labelledby="tech-title">
+        <div class="text-center">
+          <h2
+            id="tech-title"
+            class="text-sm font-semibold uppercase tracking-widest text-base-content/50"
+          >
+            Under the hood
+          </h2>
+          <div class="mt-4 flex flex-wrap justify-center gap-2">
+            <span class="badge badge-outline">Electron 43</span>
+            <span class="badge badge-outline">React 19</span>
+            <span class="badge badge-outline">TypeScript</span>
+            <span class="badge badge-outline">FFmpeg / FFprobe</span>
+            <span class="badge badge-outline">Tailwind CSS 4 + DaisyUI 5</span>
+            <span class="badge badge-outline">minio S3 client</span>
+            <span class="badge badge-outline">RustFS for local dev</span>
+            <span class="badge badge-outline">Vitest · 104 tests</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer footer-center border-t border-base-content/10 p-8 text-base-content/60">
+      <aside>
+        <p>
+          <a data-repo-link href="#" target="_blank" rel="noopener" class="link">S3ream</a>
+          — MIT © 2025 Shahfiq Shah. Bundles FFmpeg, licensed under GPL-3.0; see
+          <a data-repo-notice href="#" target="_blank" rel="noopener" class="link">NOTICE</a>.
+        </p>
+      </aside>
+    </footer>
+
+    <script>
+      // The GitHub repo URL lives here exactly once — update it if the handle changes.
+      const GITHUB_REPO = "https://github.com/shahfiq/S3ream";
+
+      document.querySelectorAll("[data-repo-link]").forEach((el) => {
+        el.href = GITHUB_REPO;
+      });
+      document.querySelectorAll("[data-repo-slug]").forEach((el) => {
+        el.textContent = GITHUB_REPO.replace("https://github.com/", "");
+      });
+      document.querySelectorAll("[data-repo-notice]").forEach((el) => {
+        el.href = GITHUB_REPO + "/blob/main/NOTICE";
+      });
+
+      // Theme switching — mirrors the app's useTheme hook and localStorage key.
+      const themeButtons = document.querySelectorAll("[data-theme-btn]");
+      const applyTheme = (preference) => {
+        const dark =
+          preference === "dark" ||
+          (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "s3reamdark" : "s3ream");
+        themeButtons.forEach((btn) => {
+          const active = btn.dataset.themeBtn === preference;
+          btn.setAttribute("aria-pressed", String(active));
+          btn.dataset.active = String(active);
+        });
+      };
+      const stored = localStorage.getItem("s3ream-theme");
+      applyTheme(
+        stored === "light" || stored === "dark" || stored === "system" ? stored : "system",
+      );
+      themeButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const preference = btn.dataset.themeBtn;
+          localStorage.setItem("s3ream-theme", preference);
+          applyTheme(preference);
+        });
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if ((localStorage.getItem("s3ream-theme") || "system") === "system") applyTheme("system");
+      });
+
+      // Screenshot tabs with arrow-key navigation.
+      const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+      const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
+      const activateTab = (tab) => {
+        tabs.forEach((t) => {
+          const active = t === tab;
+          t.classList.toggle("tab-active", active);
+          t.setAttribute("aria-selected", String(active));
+          t.tabIndex = active ? 0 : -1;
+        });
+        panels.forEach((panel) => {
+          panel.hidden = panel.id !== tab.dataset.shot;
+        });
+      };
+      tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => activateTab(tab));
+        tab.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const next =
+            event.key === "ArrowRight"
+              ? (index + 1) % tabs.length
+              : (index - 1 + tabs.length) % tabs.length;
+          tabs[next].focus();
+          activateTab(tabs[next]);
+        });
+      });
+    </script>
+  </body>
+</html>

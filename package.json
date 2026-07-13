@@ -23,6 +23,7 @@
     "dist:mac": "pnpm run build && ELECTRON_RUN_AS_NODE= electron-builder --mac",
     "dist:win": "pnpm run build && ELECTRON_RUN_AS_NODE= electron-builder --win",
     "dist:linux": "pnpm run build && ELECTRON_RUN_AS_NODE= electron-builder --linux",
+    "docs:css": "tailwindcss -i docs/src/landing.css -o docs/assets/landing.css --minify",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/cli": "^4.3.2",
     "@tailwindcss/vite": "^4.3.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
