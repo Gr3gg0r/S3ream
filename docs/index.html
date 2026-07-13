@@ -14,10 +14,62 @@
       content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gr3gg0r.github.io/s3ream/" />
+    <meta property="og:site_name" content="S3ream" />
+    <meta property="og:locale" content="en_US" />
     <meta
       property="og:image"
-      content="https://shahfiq.github.io/s3ream/screenshots/simple-journey-light.png"
+      content="https://gr3gg0r.github.io/s3ream/screenshots/simple-journey-light.png"
     />
+    <meta property="og:image:width" content="2800" />
+    <meta property="og:image:height" content="1760" />
+    <meta
+      property="og:image:alt"
+      content="The S3ream Simple journey: drop a video, pick rendition qualities, choose an S3 or local destination."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="S3ream — Local video-to-HLS, straight to your S3 bucket" />
+    <meta
+      name="twitter:description"
+      content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
+    />
+    <meta
+      name="twitter:image"
+      content="https://gr3gg0r.github.io/s3ream/screenshots/simple-journey-light.png"
+    />
+    <meta name="author" content="Shahfiq Shah" />
+    <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
+    <link rel="canonical" href="https://gr3gg0r.github.io/s3ream/" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "S3ream",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "macOS, Windows, Linux",
+        "description": "Desktop app that converts video files to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required.",
+        "url": "https://gr3gg0r.github.io/s3ream/",
+        "codeRepository": "https://github.com/Gr3gg0r/S3ream",
+        "downloadUrl": "https://github.com/Gr3gg0r/S3ream/releases",
+        "softwareVersion": "0.1.0",
+        "license": "https://opensource.org/license/mit",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": {
+          "@type": "Person",
+          "name": "Shahfiq Shah",
+          "url": "https://github.com/Gr3gg0r"
+        },
+        "featureList": [
+          "Local FFmpeg encoding to adaptive HLS (master playlist plus renditions)",
+          "Upload to any S3-compatible endpoint: AWS S3, Cloudflare R2, Backblaze B2, RustFS, MinIO",
+          "Folder batch mode with configurable concurrency",
+          "Credentials encrypted with the OS keychain, stored only on your machine",
+          "Runs on macOS, Windows, and Linux"
+        ]
+      }
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230A0A0A'/%3E%3Cpath d='M13 10.5v11l9-5.5z' fill='%23FAFAFA'/%3E%3C/svg%3E"
@@ -602,7 +654,7 @@
           <div class="mockup-code text-sm">
             <pre
               data-prefix="$"
-            ><code>git clone https://github.com/<span data-repo-slug>shahfiq/S3ream</span>.git</code></pre>
+            ><code>git clone https://github.com/<span data-repo-slug>Gr3gg0r/S3ream</span>.git</code></pre>
             <pre data-prefix="$"><code>cd S3ream</code></pre>
             <pre data-prefix="$"><code>pnpm install</code></pre>
             <pre
@@ -645,7 +697,7 @@
             <span class="badge badge-outline">Tailwind CSS 4 + DaisyUI 5</span>
             <span class="badge badge-outline">minio S3 client</span>
             <span class="badge badge-outline">RustFS for local dev</span>
-            <span class="badge badge-outline">Vitest · 104 tests</span>
+            <span class="badge badge-outline">Vitest · 110 tests</span>
           </div>
         </div>
       </section>
@@ -663,7 +715,7 @@
 
     <script>
       // The GitHub repo URL lives here exactly once — update it if the handle changes.
-      const GITHUB_REPO = "https://github.com/shahfiq/S3ream";
+      const GITHUB_REPO = "https://github.com/Gr3gg0r/S3ream";
 
       document.querySelectorAll("[data-repo-link]").forEach((el) => {
         el.href = GITHUB_REPO;
