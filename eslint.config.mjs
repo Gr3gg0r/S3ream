@@ -6,12 +6,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", "node_modules", "out", "tmp"]
+    ignores: ["dist", "node_modules", "out", "tmp", "*.config.cjs"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}", "*.config.{ts,js,mjs,cjs}"],
+    files: [
+      "src/**/*.{ts,tsx}",
+      "tests/**/*.{ts,tsx}",
+      "electron.vite.config.ts",
+      "vitest.config.ts",
+    ],
     languageOptions: {
       parserOptions: {
         project: ["./tsconfig.node.json", "./tsconfig.renderer.json"],
@@ -19,27 +24,36 @@ export default tseslint.config(
         ecmaVersion: "latest",
         sourceType: "module",
         ecmaFeatures: {
-          jsx: true
-        }
-      }
+          jsx: true,
+        },
+      },
     },
     plugins: {
       react: reactPlugin,
-      "react-hooks": reactHooksPlugin
+      "react-hooks": reactHooksPlugin,
     },
     rules: {
       "@typescript-eslint/no-floating-promises": "error",
       "react/react-in-jsx-scope": "off",
       "react/jsx-uses-react": "off",
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn"
+      "react-hooks/exhaustive-deps": "warn",
     },
     settings: {
       react: {
-        version: "detect"
-      }
-    }
+        version: "detect",
+      },
+    },
   },
-  eslintConfigPrettier
+  {
+    // Plain browser script served as-is; the TS blocks above do not cover it.
+    files: ["src/renderer/public/**/*.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+      },
+    },
+  },
+  eslintConfigPrettier,
 );
-
