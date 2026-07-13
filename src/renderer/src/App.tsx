@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AppSettingsView,
   FolderScanResult,
   HistoryRecord,
   JobLogEntry,
@@ -13,7 +14,7 @@ import { useDialogA11y } from "@renderer/hooks/useDialogA11y";
 import { ThemeToggle } from "@renderer/components/ThemeToggle";
 import { JourneyWizard } from "@renderer/components/JourneyWizard";
 import { RenditionPicker } from "@renderer/components/RenditionPicker";
-import { Clock, SlidersHorizontal, Sparkles } from "@renderer/components/icons";
+import { Clock, Settings, SlidersHorizontal, Sparkles } from "@renderer/components/icons";
 import {
   COPY_FEEDBACK_MS,
   defaultRenditions,
@@ -146,6 +147,19 @@ function App() {
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(() => new Set());
   const [isBulkUrlModalOpen, setIsBulkUrlModalOpen] = useState(false);
   const [bulkUrlText, setBulkUrlText] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState<AppSettingsView | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [s3EndpointUrl, setS3EndpointUrl] = useState("");
+  const [s3BucketName, setS3BucketName] = useState("");
+  const [s3Region, setS3Region] = useState("");
+  const [s3ViewEndpoint, setS3ViewEndpoint] = useState("");
+  const [s3BucketUrl, setS3BucketUrl] = useState("");
+  const [s3PathStyle, setS3PathStyle] = useState(true);
+  const [s3PublicRead, setS3PublicRead] = useState(true);
+  const [s3UploadConcurrency, setS3UploadConcurrency] = useState(4);
+  const [s3AccessKeyId, setS3AccessKeyId] = useState("");
+  const [s3SecretAccessKey, setS3SecretAccessKey] = useState("");
   const headerHistoryCheckboxRef = useRef<HTMLInputElement>(null);
   const singleActiveJobIdRef = useRef<string | null>(null);
   const elapsedTimerRef = useRef<number | null>(null);
@@ -155,6 +169,7 @@ function App() {
   const singleElapsedStartRef = useRef<number | null>(null);
   const bulkUrlDialogRef = useRef<HTMLDivElement>(null);
   const logDialogRef = useRef<HTMLDivElement>(null);
+  const settingsDialogRef = useRef<HTMLDivElement>(null);
   const infoMessageIdRef = useRef(0);
   const historyReloadCountRef = useRef(0);
   const selectedJobIdRef = useRef<string | null>(null);
@@ -168,8 +183,10 @@ function App() {
 
   const closeBulkUrlModal = useCallback(() => setIsBulkUrlModalOpen(false), []);
   const closeLogModal = useCallback(() => setIsLogOpen(false), []);
+  const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
   useDialogA11y(isBulkUrlModalOpen, closeBulkUrlModal, bulkUrlDialogRef);
   useDialogA11y(isLogOpen, closeLogModal, logDialogRef);
+  useDialogA11y(isSettingsOpen, closeSettings, settingsDialogRef);
 
   const pushMessage = useCallback((message: string) => {
     const id = ++infoMessageIdRef.current;
@@ -565,6 +582,58 @@ function App() {
     }
   };
 
+  const openSettings = useCallback(() => {
+    setS3AccessKeyId("");
+    setS3SecretAccessKey("");
+    setIsSettingsOpen(true);
+    if (!window.api) return;
+    // Always refetch: the Simple journey may have saved settings this session.
+    void window.api
+      .getSettings()
+      .then((view) => {
+        setSettingsView(view);
+        const s3 = view.s3;
+        setS3EndpointUrl(s3?.endpointUrl ?? "");
+        setS3BucketName(s3?.bucketName ?? "");
+        setS3Region(s3?.region ?? "");
+        setS3ViewEndpoint(s3?.viewEndpoint ?? "");
+        setS3BucketUrl(s3?.bucketUrl ?? "");
+        setS3PathStyle(s3?.pathStyle ?? true);
+        setS3PublicRead(s3?.publicRead ?? true);
+        setS3UploadConcurrency(s3?.uploadConcurrency ?? 4);
+      })
+      .catch(() => {
+        // Settings are optional; the form stays blank.
+      });
+  }, []);
+
+  const handleSaveSettings = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!window.api || settingsSaving) return;
+    setSettingsSaving(true);
+    try {
+      const view = await window.api.saveSettings({
+        endpointUrl: s3EndpointUrl.trim(),
+        region: s3Region.trim() || "us-east-1",
+        bucketName: s3BucketName.trim(),
+        bucketUrl: s3BucketUrl.trim(),
+        viewEndpoint: s3ViewEndpoint.trim(),
+        pathStyle: s3PathStyle,
+        uploadConcurrency: s3UploadConcurrency,
+        publicRead: s3PublicRead,
+        accessKeyId: s3AccessKeyId.trim(),
+        secretAccessKey: s3SecretAccessKey.trim(),
+      });
+      setSettingsView(view);
+      setIsSettingsOpen(false);
+      pushMessage("S3 settings saved.");
+    } catch (error) {
+      pushMessage(`Failed to save settings: ${formatError(error)}`);
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   const handleCopyUrl = async (
     url: string | null | undefined,
     options?: { jobId?: string; historyId?: string },
@@ -706,6 +775,15 @@ function App() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="linear-btn linear-btn-secondary linear-btn-sm inline-flex items-center gap-1.5"
+                onClick={openSettings}
+                aria-label="S3 settings"
+              >
+                <Settings size={14} />
+                <span className="hidden sm:inline">S3 settings</span>
+              </button>
               <ThemeToggle preference={preference} setPreference={setPreference} />
               <div className="linear-segmented" role="radiogroup" aria-label="View">
                 <button
@@ -1554,6 +1632,207 @@ function App() {
                   Copy all
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSettingsOpen && (
+        <div
+          ref={settingsDialogRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-base-300/60 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="S3 settings"
+          tabIndex={-1}
+          onClick={closeSettings}
+        >
+          <div
+            className="linear-card max-h-[90vh] w-full max-w-2xl overflow-y-auto"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="card-body gap-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight">S3 settings</h2>
+                  <p className="linear-hint">
+                    {settingsView?.s3
+                      ? `Saved for bucket ${settingsView.s3.bucketName || "(unnamed)"}.`
+                      : "No saved settings yet — the app falls back to environment variables."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="linear-btn linear-btn-secondary linear-btn-sm"
+                  onClick={closeSettings}
+                >
+                  Close
+                </button>
+              </div>
+              <form className="flex flex-col gap-4" onSubmit={handleSaveSettings}>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="s3-endpoint-url" className="linear-label">
+                    Endpoint URL
+                  </label>
+                  <input
+                    id="s3-endpoint-url"
+                    type="text"
+                    value={s3EndpointUrl}
+                    onChange={(event) => setS3EndpointUrl(event.target.value)}
+                    placeholder="https://s3.example.com"
+                    className="linear-input"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-bucket-name" className="linear-label">
+                      Bucket
+                    </label>
+                    <input
+                      id="s3-bucket-name"
+                      type="text"
+                      value={s3BucketName}
+                      onChange={(event) => setS3BucketName(event.target.value)}
+                      placeholder="my-bucket"
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-region" className="linear-label">
+                      Region
+                    </label>
+                    <input
+                      id="s3-region"
+                      type="text"
+                      value={s3Region}
+                      onChange={(event) => setS3Region(event.target.value)}
+                      placeholder="us-east-1"
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-access-key" className="linear-label">
+                      Access key
+                    </label>
+                    <input
+                      id="s3-access-key"
+                      type="text"
+                      value={s3AccessKeyId}
+                      onChange={(event) => setS3AccessKeyId(event.target.value)}
+                      placeholder={
+                        settingsView?.s3?.hasAccessKey
+                          ? "•••••••• saved — enter to replace"
+                          : undefined
+                      }
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-secret-key" className="linear-label">
+                      Secret key
+                    </label>
+                    <input
+                      id="s3-secret-key"
+                      type="password"
+                      value={s3SecretAccessKey}
+                      onChange={(event) => setS3SecretAccessKey(event.target.value)}
+                      placeholder={
+                        settingsView?.s3?.hasSecretKey
+                          ? "•••••••• saved — enter to replace"
+                          : undefined
+                      }
+                      className="linear-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-view-endpoint" className="linear-label">
+                      Public/View base URL (optional)
+                    </label>
+                    <input
+                      id="s3-view-endpoint"
+                      type="text"
+                      value={s3ViewEndpoint}
+                      onChange={(event) => setS3ViewEndpoint(event.target.value)}
+                      placeholder="https://cdn.example.com"
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="s3-upload-concurrency" className="linear-label">
+                      Upload concurrency
+                    </label>
+                    <input
+                      id="s3-upload-concurrency"
+                      type="number"
+                      min={1}
+                      max={16}
+                      value={s3UploadConcurrency}
+                      onChange={(event) => setS3UploadConcurrency(Number(event.target.value))}
+                      className="linear-input"
+                      autoComplete="off"
+                    />
+                    <span className="linear-hint">Parallel upload workers (1–16).</span>
+                  </div>
+                </div>
+                <label htmlFor="s3-path-style" className="flex items-center gap-2 text-[13px]">
+                  <input
+                    id="s3-path-style"
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={s3PathStyle}
+                    onChange={(event) => setS3PathStyle(event.target.checked)}
+                  />
+                  Use path-style endpoint (self-hosted stores)
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="s3-public-read" className="flex items-center gap-2 text-[13px]">
+                    <input
+                      id="s3-public-read"
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={s3PublicRead}
+                      onChange={(event) => setS3PublicRead(event.target.checked)}
+                    />
+                    Make the bucket publicly readable
+                  </label>
+                  <span className="linear-hint">
+                    {s3PublicRead
+                      ? "S3ream applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
+                      : "Objects stay private — you'll need signed URLs or your own bucket policy to play the streams."}
+                  </span>
+                </div>
+                <span className="linear-hint">
+                  {settingsView?.encryptionAvailable
+                    ? "Stored locally on this machine, encrypted by your OS."
+                    : "Stored locally on this machine (OS encryption unavailable)."}
+                </span>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="linear-btn linear-btn-secondary linear-btn-sm"
+                    onClick={closeSettings}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="linear-btn linear-btn-primary linear-btn-sm"
+                    disabled={settingsSaving}
+                  >
+                    {settingsSaving ? "Saving…" : "Save settings"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

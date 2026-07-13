@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ExposedBridge,
@@ -323,5 +323,67 @@ describe("Journey wizard S3 validation", () => {
       expect.objectContaining({ secretAccessKey: "x" }),
     );
     expect(await screen.findByText("Your stream is ready")).toBeInTheDocument();
+  });
+});
+
+describe("S3 settings modal", () => {
+  it("opens from the header in Advanced view and saves the form", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("radio", { name: "Advanced" }));
+    fireEvent.click(screen.getByRole("button", { name: "S3 settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "S3 settings" });
+    expect(within(dialog).getByText(/No saved settings yet/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Endpoint URL"), {
+      target: { value: "http://localhost:9000" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Bucket"), { target: { value: "media" } });
+    fireEvent.change(within(dialog).getByLabelText("Access key"), { target: { value: "AKIA" } });
+    fireEvent.change(within(dialog).getByLabelText("Secret key"), {
+      target: { value: "  secret  " },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save settings" }));
+
+    await vi.waitFor(() => expect(bridgeApi.saveSettings).toHaveBeenCalled());
+    expect(bridgeApi.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointUrl: "http://localhost:9000",
+        bucketName: "media",
+        region: "us-east-1",
+        secretAccessKey: "secret",
+        publicRead: true,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "S3 settings" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("prefills saved settings when the modal opens", async () => {
+    vi.mocked(bridgeApi.getSettings).mockResolvedValue({
+      s3: {
+        endpointUrl: "https://s3.example.com",
+        region: "eu-west-1",
+        bucketName: "saved-bucket",
+        bucketUrl: "",
+        viewEndpoint: "",
+        pathStyle: false,
+        uploadConcurrency: 6,
+        publicRead: false,
+        hasAccessKey: true,
+        hasSecretKey: true,
+      },
+      encryptionAvailable: true,
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "S3 settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "S3 settings" });
+    await vi.waitFor(() =>
+      expect(within(dialog).getByLabelText("Endpoint URL")).toHaveValue("https://s3.example.com"),
+    );
+    expect(within(dialog).getByLabelText("Bucket")).toHaveValue("saved-bucket");
+    expect(within(dialog).getByLabelText("Region")).toHaveValue("eu-west-1");
+    expect(within(dialog).getByText(/Saved for bucket saved-bucket/)).toBeInTheDocument();
   });
 });

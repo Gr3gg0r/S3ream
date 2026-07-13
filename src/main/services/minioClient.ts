@@ -68,7 +68,9 @@ const createClient = () => {
   );
 
   if (!accessKey || !secretKey) {
-    throw new Error("Missing S3 credentials. Set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.");
+    throw new Error(
+      "Missing S3 credentials. Open S3 settings in the app, or set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.",
+    );
   }
 
   return new Client({
