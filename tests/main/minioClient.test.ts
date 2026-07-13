@@ -133,6 +133,7 @@ describe("configureS3 overrides", () => {
     viewEndpoint: "",
     pathStyle: false,
     uploadConcurrency: 6,
+    publicRead: false,
     accessKeyId: "override-key",
     secretAccessKey: "override-secret",
   };
@@ -186,5 +187,15 @@ describe("configureS3 overrides", () => {
     expect(mod.getActiveUploadConcurrency()).toBe(6);
     mod.configureS3(null);
     expect(mod.getActiveUploadConcurrency()).toBeNull();
+  });
+
+  it("exposes the saved public-read preference, then null when cleared", async () => {
+    vi.resetModules();
+    const mod = await import("../../src/main/services/minioClient");
+    expect(mod.getActivePublicRead()).toBeNull();
+    mod.configureS3(override);
+    expect(mod.getActivePublicRead()).toBe(false);
+    mod.configureS3(null);
+    expect(mod.getActivePublicRead()).toBeNull();
   });
 });

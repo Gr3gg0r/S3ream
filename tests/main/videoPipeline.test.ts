@@ -86,6 +86,7 @@ describe("getUploadConcurrency", () => {
     viewEndpoint: "",
     pathStyle: true,
     uploadConcurrency: 6,
+    publicRead: true,
     accessKeyId: "key",
     secretAccessKey: "secret",
   };

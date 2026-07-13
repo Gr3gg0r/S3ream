@@ -11,6 +11,7 @@ export interface ResolvedS3Settings {
   viewEndpoint: string;
   pathStyle: boolean;
   uploadConcurrency: number;
+  publicRead: boolean;
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -135,8 +136,10 @@ export class SettingsService {
     const { secrets, ...rest } = this.settings.s3;
     return {
       ...rest,
-      // Stores written before uploadConcurrency existed fall back to the default.
+      // Stores written before these fields existed fall back to defaults
+      // (publicRead defaults on to preserve the pre-toggle behavior).
       uploadConcurrency: rest.uploadConcurrency ?? DEFAULT_UPLOAD_CONCURRENCY,
+      publicRead: rest.publicRead ?? true,
       accessKeyId: this.decrypt(secrets.accessKeyId, secrets.format),
       secretAccessKey: this.decrypt(secrets.secretAccessKey, secrets.format),
     };
@@ -154,6 +157,7 @@ export class SettingsService {
             viewEndpoint: resolved.viewEndpoint,
             pathStyle: resolved.pathStyle,
             uploadConcurrency: resolved.uploadConcurrency,
+            publicRead: resolved.publicRead,
             hasAccessKey: resolved.accessKeyId.length > 0,
             hasSecretKey: resolved.secretAccessKey.length > 0,
           }
@@ -178,6 +182,8 @@ export class SettingsService {
       viewEndpoint: input.viewEndpoint.trim(),
       pathStyle: input.pathStyle,
       uploadConcurrency: clampUploadConcurrency(input.uploadConcurrency),
+      // Callers that predate the toggle omit it — default on.
+      publicRead: input.publicRead !== false,
       accessKeyId,
       secretAccessKey,
     };
@@ -190,6 +196,7 @@ export class SettingsService {
         viewEndpoint: resolved.viewEndpoint,
         pathStyle: resolved.pathStyle,
         uploadConcurrency: resolved.uploadConcurrency,
+        publicRead: resolved.publicRead,
         secrets: {
           format,
           accessKeyId: this.encrypt(accessKeyId, format),

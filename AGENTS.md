@@ -275,7 +275,7 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 ### S3 Client (`minioClient.ts`)
 
 - Uses the `minio` npm package, but works with any S3-compatible endpoint; local development targets RustFS.
-- `ensureBucket` creates the bucket if missing and applies a public-read policy.
+- `ensureBucket` creates the bucket if missing and applies a public-read policy (skipped when the user disables public read in settings).
 - `buildPublicUrl` constructs URLs from view endpoint → bucket URL fallback.
 - `configureS3(settings)` applies saved settings at runtime (called at startup and on `settings:save`); non-empty fields win over env vars and the cached client is reset. `getActiveBucketName()` resolves the bucket with the same precedence.
 
@@ -306,7 +306,7 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 3. **Context isolation**: Preload runs in an isolated context; only `window.api` is exposed.
 4. **Sandbox enabled**: `sandbox: true` — the preload must stick to `ipcRenderer`/`contextBridge` only. Never expose raw `ipcRenderer` or Node-capable APIs through `window.api`.
 5. **S3 credentials**: Entered in the app's settings UI and stored in `settings.json` under the Electron `userData` directory, encrypted via `safeStorage` when the OS keychain is available. Env vars are dev presets only: all `.env*` files are gitignored except `.env.slow`, which is intentionally tracked and contains only local RustFS/Toxiproxy defaults. Never commit credentials.
-6. **Bucket policy**: The app automatically applies a public-read policy to the target bucket. Ensure this is acceptable for your deployment.
+6. **Bucket policy**: The app applies a public-read policy to the target bucket by default so streams play without signed URLs. The destination-step toggle lets the user disable this (with an in-UI warning about whole-bucket exposure when it's on); ensure the default is acceptable for your deployment.
 7. **Temp files**: HLS artifacts are written to `os.tmpdir()` and cleaned up on every job exit path; any orphans from a crash are swept at the next startup.
 
 ---

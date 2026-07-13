@@ -35,10 +35,12 @@ S3ream is a local-first desktop app:
 - The renderer is sandboxed (`contextIsolation: true`, `sandbox: true`,
   `nodeIntegration: false`) behind a strict Content-Security-Policy and loads
   no remote content.
-- The app applies a **public-read bucket policy** to the target S3 bucket by
-  design — that is expected behavior for sharing HLS streams, not a
-  vulnerability. Please only report it if you find objects being exposed
-  beyond the user's configured destination.
+- The app applies a **public-read bucket policy** to the target S3 bucket so
+  HLS streams play without signed URLs. This is user-controllable (the
+  destination-step toggle, on by default) and disclosed in the UI — it is
+  expected behavior, not a vulnerability. Please only report it if objects
+  are exposed beyond the user's configured destination, or if the policy is
+  applied even when the toggle is off.
 
 Out of scope: issues requiring physical access to the user's machine,
 self-XSS, and vulnerabilities in third-party dependencies without a

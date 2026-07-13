@@ -17,6 +17,9 @@ export const configureS3 = (settings: ResolvedS3Settings | null) => {
 export const getActiveUploadConcurrency = (): number | null =>
   configOverride?.uploadConcurrency ?? null;
 
+/** Public-read preference from saved settings; null when unset so the policy applies. */
+export const getActivePublicRead = (): boolean | null => configOverride?.publicRead ?? null;
+
 const resolveValue = (overrideValue: string | undefined, envValue: string | undefined) => {
   if (overrideValue && overrideValue.length > 0) {
     return overrideValue;
@@ -101,7 +104,11 @@ export const ensureBucket = async (bucket: string) => {
   if (!exists) {
     await client.makeBucket(bucket, resolveValue(configOverride?.region, process.env.S3_REGION));
   }
-  await ensurePublicReadPolicy(client, bucket);
+  // Only skip when the user explicitly disabled public read; env-only setups
+  // (no saved settings) keep the historical behavior of applying the policy.
+  if (getActivePublicRead() !== false) {
+    await ensurePublicReadPolicy(client, bucket);
+  }
 };
 
 export const buildPublicUrl = (objectKey: string) => {

@@ -46,6 +46,8 @@ pnpm run preview
 
 Everything is configured in the app — there are no env files to set up. In the **Simple** journey, the destination step collects your S3 connection details (endpoint, region, bucket, credentials, path-style, public/view base URLs, and upload concurrency) and saves them locally on your machine. Secrets are encrypted with your OS keychain when available; nothing leaves the app except uploads to the endpoint you configure.
 
+By default, uploads make the target bucket **publicly readable** so the generated streams play without signed URLs — the destination step discloses this and lets you turn it off (objects then stay private and you'll need signed URLs or your own bucket policy to play them).
+
 For development, the `dev:*` scripts can preload settings from env presets (e.g. `pnpm run dev:slow` loads `.env.slow` for the Toxiproxy endpoint). Saved UI settings always take precedence over env vars.
 
 | Variable                     | Description                                                                          |

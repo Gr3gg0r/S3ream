@@ -22,6 +22,7 @@ const baseInput: S3SettingsInput = {
   viewEndpoint: "",
   pathStyle: true,
   uploadConcurrency: 8,
+  publicRead: false,
   accessKeyId: "AKIAEXAMPLE",
   secretAccessKey: "super-secret-value",
 };
@@ -62,15 +63,19 @@ describe("SettingsService", () => {
     expect(service.save({ ...baseInput, uploadConcurrency: Number.NaN }).uploadConcurrency).toBe(4);
   });
 
-  it("defaults uploadConcurrency for stores written before it existed", () => {
+  it("defaults uploadConcurrency and publicRead for stores written before they existed", () => {
     const { service, dir, file } = createService();
     service.save(baseInput);
     const stored = JSON.parse(readFileSync(file, "utf-8"));
     delete stored.s3.uploadConcurrency;
+    delete stored.s3.publicRead;
     writeFileSync(file, JSON.stringify(stored), "utf-8");
     vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
     const reloaded = new SettingsService();
     expect(reloaded.getS3Settings()?.uploadConcurrency).toBe(4);
+    // Legacy stores predate the toggle, so they keep the historical
+    // policy-applying behavior (public read on).
+    expect(reloaded.getS3Settings()?.publicRead).toBe(true);
   });
 
   it("masks secrets in the renderer-facing view", () => {

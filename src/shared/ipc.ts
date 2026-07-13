@@ -44,6 +44,7 @@ export interface S3SettingsInput {
   bucketUrl: string;
   viewEndpoint: string;
   pathStyle: boolean;
+  publicRead: boolean;
   uploadConcurrency: number;
   accessKeyId: string;
   secretAccessKey: string;
@@ -61,6 +62,7 @@ export interface AppSettingsView {
     bucketUrl: string;
     viewEndpoint: string;
     pathStyle: boolean;
+    publicRead: boolean;
     uploadConcurrency: number;
     hasAccessKey: boolean;
     hasSecretKey: boolean;

@@ -42,6 +42,7 @@ export const JourneyWizard = () => {
   const [bucketUrl, setBucketUrl] = useState("");
   const [pathStyle, setPathStyle] = useState(true);
   const [uploadConcurrency, setUploadConcurrency] = useState(4);
+  const [publicRead, setPublicRead] = useState(true);
   const [accessKeyId, setAccessKeyId] = useState("");
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [settings, setSettings] = useState<AppSettingsView | null>(null);
@@ -68,6 +69,7 @@ export const JourneyWizard = () => {
           setBucketUrl(view.s3.bucketUrl);
           setPathStyle(view.s3.pathStyle);
           setUploadConcurrency(view.s3.uploadConcurrency);
+          setPublicRead(view.s3.publicRead);
         }
       })
       .catch(() => {
@@ -154,6 +156,7 @@ export const JourneyWizard = () => {
           viewEndpoint: viewEndpoint.trim(),
           pathStyle,
           uploadConcurrency,
+          publicRead,
           accessKeyId: accessKeyId.trim(),
           secretAccessKey: secretAccessKey.trim(),
         });
@@ -492,6 +495,23 @@ export const JourneyWizard = () => {
                   />
                   Use path-style endpoint (self-hosted stores)
                 </label>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="jw-public-read" className="flex items-center gap-2 text-[13px]">
+                    <input
+                      id="jw-public-read"
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={publicRead}
+                      onChange={(event) => setPublicRead(event.target.checked)}
+                    />
+                    Make the bucket publicly readable
+                  </label>
+                  <span className="linear-hint">
+                    {publicRead
+                      ? "S3ream applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
+                      : "Objects stay private — you'll need signed URLs or your own bucket policy to play the streams."}
+                  </span>
+                </div>
                 <span className="linear-hint">
                   {settings?.encryptionAvailable
                     ? "Stored locally on this machine, encrypted by your OS."
