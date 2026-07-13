@@ -273,6 +273,277 @@
     font-size: 12px;
     line-height: 1.6;
   }
+
+  /*
+   * Animated journey demo — a miniature of the Simple wizard, driven by the
+   * timeline script at the bottom of index.html. Motion is entirely
+   * class-toggled, so reduced-motion users can be frozen on the final frame.
+   */
+  .demo-frame {
+    border-radius: 20px;
+    padding: 20px;
+  }
+  .demo-steps {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2;
+  }
+  .demo-step {
+    @apply inline-flex items-center gap-1.5;
+    font-size: 12px;
+    font-weight: 500;
+    color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+    transition: color 200ms;
+  }
+  .demo-step .dot {
+    @apply grid place-items-center;
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    border: 1.5px solid color-mix(in srgb, var(--color-base-content) 30%, transparent);
+    font-size: 10px;
+    transition:
+      background-color 200ms,
+      border-color 200ms,
+      color 200ms;
+  }
+  .demo-step.is-active {
+    color: var(--color-base-content);
+  }
+  .demo-step.is-active .dot {
+    border-color: var(--color-primary);
+  }
+  .demo-step.is-done .dot {
+    background-color: var(--color-primary);
+    border-color: transparent;
+    color: var(--color-primary-content);
+  }
+  .demo-step.is-done .dot .num {
+    display: none;
+  }
+  .demo-step.is-done .dot::before {
+    content: "✓";
+  }
+
+  .demo-stage {
+    position: relative;
+    height: 244px;
+    margin-top: 18px;
+    overflow: hidden;
+  }
+  .demo-pane {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 350ms ease,
+      transform 350ms ease;
+    pointer-events: none;
+  }
+  .demo-pane.is-active {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .demo-pane-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
+  }
+
+  .demo-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 22px 16px;
+    border-radius: 14px;
+    border: 1.5px dashed color-mix(in srgb, var(--color-base-content) 25%, transparent);
+    font-size: 13px;
+    color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  }
+  .demo-filecard {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(100%, 320px);
+    padding: 10px 12px;
+    border-radius: 12px;
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    transition:
+      opacity 300ms ease,
+      transform 300ms ease;
+  }
+  .demo-filecard.is-in {
+    opacity: 1;
+    transform: none;
+  }
+  [data-theme="s3ream"] .demo-filecard {
+    background-color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 2px 8px rgba(16, 18, 27, 0.06);
+  }
+  [data-theme="s3reamdark"] .demo-filecard {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .demo-filecard strong {
+    display: block;
+    font-size: 12.5px;
+  }
+  .demo-filecard .meta {
+    font-size: 11px;
+    color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  }
+  .demo-filecard .tick {
+    margin-left: auto;
+    color: var(--color-success);
+    opacity: 0;
+    transition: opacity 300ms 150ms;
+  }
+  .demo-filecard.is-in .tick {
+    opacity: 1;
+  }
+
+  .demo-pills {
+    @apply flex flex-wrap justify-center gap-2;
+  }
+  .demo-pill {
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
+    color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease,
+      transform 200ms ease;
+  }
+  .demo-pill.is-on {
+    background-color: var(--color-primary);
+    border-color: transparent;
+    color: var(--color-primary-content);
+    transform: translateY(-1px);
+  }
+
+  .demo-dest {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .demo-dest-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+    font-size: 13px;
+    font-weight: 600;
+    transition:
+      border-color 200ms,
+      background-color 200ms,
+      transform 200ms;
+  }
+  .demo-dest-card span {
+    font-size: 11px;
+    font-weight: 400;
+    color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  }
+  .demo-dest-card.is-on {
+    border-color: var(--color-primary);
+    background-color: color-mix(in srgb, var(--color-primary) 6%, transparent);
+    transform: translateY(-2px);
+  }
+  .demo-hint {
+    text-align: center;
+    opacity: 0;
+    transform: translateY(4px);
+    color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+    transition:
+      opacity 250ms,
+      transform 250ms;
+  }
+  .demo-hint.is-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  .demo-stage-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .demo-stage-label [data-progress-pct] {
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  }
+  .demo-progress {
+    height: 8px;
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-base-content) 10%, transparent);
+    overflow: hidden;
+  }
+  .demo-progress > span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background-color: var(--color-primary);
+    transition: width 1.5s ease-in-out;
+  }
+  .demo-log {
+    text-align: center;
+    color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+  }
+
+  .demo-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+  .demo-check {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+  }
+  .demo-url {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 8px 10px 8px 14px;
+  }
+  .demo-url code {
+    word-break: break-all;
+  }
+  .demo-copy {
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    background-color: var(--color-primary);
+    color: var(--color-primary-content);
+    transition: opacity 120ms;
+  }
+  .demo-copy.is-copied {
+    opacity: 0.75;
+  }
 }
 
 @layer utilities {

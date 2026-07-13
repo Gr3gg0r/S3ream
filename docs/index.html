@@ -208,6 +208,159 @@
         </p>
       </section>
 
+      <!-- Live demo -->
+      <section id="demo" class="pb-20" aria-labelledby="demo-title">
+        <div class="mx-auto mb-8 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            See it work
+          </p>
+          <h2 id="demo-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            File in, stream out — one pass
+          </h2>
+          <p class="mt-3 text-base-content/70">The real Simple journey, sped up.</p>
+        </div>
+        <div class="linear-card demo-frame mx-auto max-w-2xl" data-demo>
+          <div class="demo-steps" aria-hidden="true">
+            <span class="demo-step" data-step="video"
+              ><span class="dot"><span class="num">1</span></span
+              >Video</span
+            >
+            <span class="demo-step" data-step="quality"
+              ><span class="dot"><span class="num">2</span></span
+              >Quality</span
+            >
+            <span class="demo-step" data-step="destination"
+              ><span class="dot"><span class="num">3</span></span
+              >Destination</span
+            >
+            <span class="demo-step" data-step="stream"
+              ><span class="dot"><span class="num">4</span></span
+              >Stream</span
+            >
+          </div>
+          <div class="demo-stage">
+            <div class="demo-pane" data-pane="video">
+              <div class="demo-dropzone">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 16V4m0 0L8 8m4-4 4 4" />
+                  <path d="M4 15v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2" />
+                </svg>
+                <span>Drop a video or click to browse</span>
+                <div class="demo-filecard" data-filecard>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="M3 9h18M7 5v4M12 5v4M17 5v4" />
+                  </svg>
+                  <div>
+                    <strong>promo-night.mp4</strong>
+                    <span class="meta">248 MB · 1920×1080 · 24 fps</span>
+                  </div>
+                  <svg
+                    class="tick"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="demo-pane" data-pane="quality">
+              <p class="demo-pane-title">Pick your renditions</p>
+              <div class="demo-pills">
+                <span class="demo-pill" data-pill="4k">4K</span>
+                <span class="demo-pill" data-pill="1440p">1440p</span>
+                <span class="demo-pill" data-pill="1080p">1080p</span>
+                <span class="demo-pill" data-pill="720p">720p</span>
+                <span class="demo-pill" data-pill="480p">480p</span>
+                <span class="demo-pill" data-pill="360p">360p</span>
+                <span class="demo-pill" data-pill="240p">240p</span>
+              </div>
+              <p class="demo-hint is-in">
+                Profiles taller than the source are skipped automatically.
+              </p>
+            </div>
+            <div class="demo-pane" data-pane="destination">
+              <div class="demo-dest">
+                <div class="demo-dest-card" data-dest="local">
+                  Local folder
+                  <span>Save the HLS files on this machine</span>
+                </div>
+                <div class="demo-dest-card" data-dest="s3">
+                  S3 bucket
+                  <span>Upload to any S3-compatible endpoint</span>
+                </div>
+              </div>
+              <p class="demo-hint linear-mono" data-dest-hint>s3://my-bucket/videos/promo-night/</p>
+            </div>
+            <div class="demo-pane" data-pane="convert">
+              <div class="demo-stage-label">
+                <span data-progress-label>Preparing…</span>
+                <span data-progress-pct>0%</span>
+              </div>
+              <div class="demo-progress"><span data-progress-bar></span></div>
+              <p class="demo-log linear-mono">x264 veryfast · aac · hls_time 6s · master.m3u8</p>
+            </div>
+            <div class="demo-pane" data-pane="done">
+              <div class="demo-success">
+                <span class="demo-check">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+                <strong>Your stream is ready</strong>
+                <div class="demo-url linear-well">
+                  <code class="linear-mono"
+                    >https://cdn.example.com/videos/promo-night/master.m3u8</code
+                  >
+                  <button type="button" class="demo-copy" data-copy>Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-4 text-center text-xs text-base-content/40">
+          Simulated for this page — the app shows live FFmpeg and upload progress.
+        </p>
+      </section>
+
       <!-- Screenshots -->
       <section class="pb-16" aria-label="Screenshots">
         <div class="mb-5 flex justify-center">
@@ -782,6 +935,140 @@
           activateTab(tabs[next]);
         });
       });
+
+      // Animated journey demo — a miniature of the Simple wizard. All motion is
+      // class-toggled so reduced-motion users get the final frame statically.
+      (function () {
+        const demo = document.querySelector("[data-demo]");
+        if (!demo) return;
+        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const steps = {};
+        demo.querySelectorAll("[data-step]").forEach((el) => (steps[el.dataset.step] = el));
+        const panes = {};
+        demo.querySelectorAll("[data-pane]").forEach((el) => (panes[el.dataset.pane] = el));
+        const pill = (name) => demo.querySelector('[data-pill="' + name + '"]');
+        const bar = demo.querySelector("[data-progress-bar]");
+        const label = demo.querySelector("[data-progress-label]");
+        const pct = demo.querySelector("[data-progress-pct]");
+        const filecard = demo.querySelector("[data-filecard]");
+        const destS3 = demo.querySelector('[data-dest="s3"]');
+        const destHint = demo.querySelector("[data-dest-hint]");
+        const copyBtn = demo.querySelector("[data-copy]");
+
+        let timers = [];
+        const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+        const clearAll = () => {
+          timers.forEach(clearTimeout);
+          timers = [];
+        };
+        const showPane = (name) =>
+          Object.values(panes).forEach((p) =>
+            p.classList.toggle("is-active", p.dataset.pane === name),
+          );
+        const setStep = (name, state) => {
+          steps[name].classList.toggle("is-active", state === "active");
+          steps[name].classList.toggle("is-done", state === "done");
+        };
+        const progress = (text, percent) => {
+          label.textContent = text;
+          pct.textContent = percent + "%";
+          bar.style.width = percent + "%";
+        };
+
+        const reset = () => {
+          Object.values(steps).forEach((el) => el.classList.remove("is-active", "is-done"));
+          Object.values(panes).forEach((el) => el.classList.remove("is-active"));
+          demo.querySelectorAll("[data-pill]").forEach((el) => el.classList.remove("is-on"));
+          filecard.classList.remove("is-in");
+          destS3.classList.remove("is-on");
+          destHint.classList.remove("is-in");
+          copyBtn.classList.remove("is-copied");
+          copyBtn.textContent = "Copy";
+          // Snap the bar back without animating the rewind.
+          bar.style.transition = "none";
+          bar.style.width = "0%";
+          void bar.offsetWidth;
+          bar.style.transition = "";
+        };
+
+        const finalFrame = () => {
+          reset();
+          Object.values(steps).forEach((el) => el.classList.add("is-done"));
+          ["1080p", "720p", "480p"].forEach((n) => pill(n).classList.add("is-on"));
+          filecard.classList.add("is-in");
+          destS3.classList.add("is-on");
+          destHint.classList.add("is-in");
+          progress("Done", 100);
+          showPane("done");
+        };
+
+        const run = () => {
+          reset();
+          at(0, () => {
+            setStep("video", "active");
+            showPane("video");
+          });
+          at(700, () => filecard.classList.add("is-in"));
+          at(1900, () => {
+            setStep("video", "done");
+            setStep("quality", "active");
+            showPane("quality");
+          });
+          at(2300, () => pill("1080p").classList.add("is-on"));
+          at(2600, () => pill("720p").classList.add("is-on"));
+          at(2900, () => pill("480p").classList.add("is-on"));
+          at(3700, () => {
+            setStep("quality", "done");
+            setStep("destination", "active");
+            showPane("destination");
+          });
+          at(4300, () => {
+            destS3.classList.add("is-on");
+            destHint.classList.add("is-in");
+          });
+          at(5300, () => {
+            setStep("destination", "done");
+            setStep("stream", "active");
+            showPane("convert");
+            progress("Probing source…", 8);
+          });
+          at(6300, () => progress("Encoding 1080p…", 45));
+          at(8500, () => progress("Encoding 720p + 480p…", 72));
+          at(10000, () => progress("Uploading segments…", 100));
+          at(11600, () => {
+            setStep("stream", "done");
+            showPane("done");
+          });
+          at(12400, () => {
+            copyBtn.classList.add("is-copied");
+            copyBtn.textContent = "Copied ✓";
+          });
+          at(14800, () => {
+            clearAll();
+            run();
+          });
+        };
+
+        if (reduce) {
+          finalFrame();
+          return;
+        }
+        // Only animate while the demo is on screen.
+        let running = false;
+        new IntersectionObserver(
+          (entries) => {
+            const visible = entries[0].isIntersecting;
+            if (visible && !running) {
+              running = true;
+              run();
+            } else if (!visible && running) {
+              running = false;
+              clearAll();
+            }
+          },
+          { threshold: 0.3 },
+        ).observe(demo);
+      })();
     </script>
   </body>
 </html>

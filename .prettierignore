@@ -1,0 +1,7 @@
+# Build outputs — generated, never hand-edited
+dist/
+release/
+docs/assets/landing.css
+
+# Lockfile — machine-formatted by pnpm
+pnpm-lock.yaml
