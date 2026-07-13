@@ -5,7 +5,7 @@
 
 Electron desktop app that converts MP4 (or any FFmpeg-compatible video) into a multi-bitrate HLS stream locally and uploads the result straight to an S3-compatible object store — no transcoding server, no third-party service in between. Everything is configured in the app; a local RustFS Docker stack is included for development.
 
-![Animated walkthrough of the Simple journey: drop a video, pick rendition qualities, choose an S3 destination, then watch the encode and upload progress finish with a ready-to-play manifest URL](docs/assets/journey-demo.mp4)
+![Animated walkthrough of the Simple journey: drop a video, pick rendition qualities, choose an S3 destination, then watch the encode and upload progress finish with a ready-to-play manifest URL](docs/assets/journey-demo.gif)
 
 ![The Simple journey: drop a video, pick renditions, choose a destination](docs/screenshots/simple-journey-light.png)
 
