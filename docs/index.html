@@ -208,6 +208,35 @@
         </p>
       </section>
 
+      <!-- Download -->
+      <section id="download" class="pb-20" aria-labelledby="download-title">
+        <div class="mx-auto max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            Download
+          </p>
+          <h2 id="download-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            Get S3ream for your desktop
+          </h2>
+          <div data-download class="mt-8">
+            <a
+              class="btn btn-primary btn-lg"
+              data-download-primary
+              href="#"
+              target="_blank"
+              rel="noopener"
+            >
+              Browse downloads
+            </a>
+            <p class="mt-4 text-sm text-base-content/60" data-download-meta></p>
+            <p class="mt-2 text-sm text-base-content/60" data-download-alt></p>
+          </div>
+          <p class="mx-auto mt-4 max-w-md text-xs text-base-content/50">
+            Builds are unsigned — on macOS right-click → Open on first launch; on Windows click
+            “More info” → “Run anyway”.
+          </p>
+        </div>
+      </section>
+
       <!-- Live demo -->
       <section id="demo" class="pb-20" aria-labelledby="demo-title">
         <div class="mx-auto mb-8 max-w-2xl text-center">
@@ -799,11 +828,9 @@
             Build from source in a minute
           </h2>
           <p class="mt-3 text-base-content/70">
-            Packaged binaries are published on
-            <a data-repo-releases href="#" target="_blank" rel="noopener" class="link"
-              >GitHub Releases</a
-            >
-            as platforms land. Building from source takes a minute:
+            Packaged binaries for macOS, Windows, and Linux are in the
+            <a href="#download" class="link">Download section</a> above. Building from source takes
+            a minute:
           </p>
         </div>
         <div class="mx-auto max-w-2xl">
@@ -853,7 +880,7 @@
             <span class="badge badge-outline">Tailwind CSS 4 + DaisyUI 5</span>
             <span class="badge badge-outline">minio S3 client</span>
             <span class="badge badge-outline">RustFS for local dev</span>
-            <span class="badge badge-outline">Vitest · 110 tests</span>
+            <span class="badge badge-outline">Vitest · 123 tests</span>
           </div>
         </div>
       </section>
@@ -885,6 +912,105 @@
       document.querySelectorAll("[data-repo-releases]").forEach((el) => {
         el.href = GITHUB_REPO + "/releases";
       });
+
+      // OS-aware download — fetches the latest release and picks the asset
+      // matching the visitor's platform. Falls back to the Releases page.
+      (function () {
+        const section = document.querySelector("[data-download]");
+        if (!section) return;
+        const primary = section.querySelector("[data-download-primary]");
+        const meta = section.querySelector("[data-download-meta]");
+        const alt = section.querySelector("[data-download-alt]");
+        const releasesUrl = GITHUB_REPO + "/releases";
+        primary.href = releasesUrl;
+
+        const ua = navigator.userAgent;
+        // iOS/iPadOS UAs contain "Mac OS X" — exclude mobile up front so
+        // phones and tablets get the platform-neutral fallback.
+        const platform = /Mobi|iPhone|iPad|Android/i.test(ua)
+          ? null
+          : /Windows/i.test(ua)
+            ? "windows"
+            : /Macintosh|Mac OS/i.test(ua)
+              ? "mac"
+              : /Linux/i.test(ua)
+                ? "linux"
+                : null;
+
+        const candidates = [
+          { id: "windows", label: "Windows", test: (n) => /setup.*\.exe$/i.test(n) },
+          { id: "mac-arm", label: "macOS (Apple Silicon)", test: (n) => /arm64\.dmg$/i.test(n) },
+          {
+            id: "mac-intel",
+            label: "macOS (Intel)",
+            test: (n) => n.endsWith(".dmg") && !n.includes("arm64"),
+          },
+          { id: "linux", label: "Linux (AppImage)", test: (n) => /\.AppImage$/i.test(n) },
+        ];
+
+        const formatSize = (bytes) => {
+          if (!bytes) return "";
+          const mb = bytes / 1048576;
+          return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${Math.round(mb)} MB`;
+        };
+
+        fetch("https://api.github.com/repos/Gr3gg0r/S3ream/releases/latest", {
+          headers: { Accept: "application/vnd.github+json" },
+        })
+          .then((response) =>
+            response.ok ? response.json() : Promise.reject(new Error(String(response.status))),
+          )
+          .then(async (release) => {
+            const assets = release.assets || [];
+            const resolved = candidates
+              .map((candidate) => ({
+                ...candidate,
+                asset: assets.find((asset) => candidate.test(asset.name || "")),
+              }))
+              .filter((candidate) => candidate.asset);
+            if (!resolved.length) return;
+
+            let primaryId =
+              platform === "windows" ? "windows" : platform === "linux" ? "linux" : "mac-arm";
+            // Intel Macs can't run the arm64 build — flip the primary when the
+            // browser reports an x86 architecture (Chromium only; best-effort).
+            if (platform === "mac" && navigator.userAgentData?.getHighEntropyValues) {
+              try {
+                const values = await navigator.userAgentData.getHighEntropyValues(["architecture"]);
+                if (values.architecture === "x86") primaryId = "mac-intel";
+              } catch {
+                // Keep the Apple Silicon default.
+              }
+            }
+
+            const main =
+              resolved.find((candidate) => candidate.id === primaryId) ||
+              (platform ? null : resolved[0]);
+            const others = resolved.filter((candidate) => candidate !== main);
+
+            if (main) {
+              primary.href = main.asset.browser_download_url;
+              primary.textContent = `Download for ${main.label}`;
+              const size = formatSize(main.asset.size);
+              meta.textContent = [release.tag_name, size].filter(Boolean).join(" · ");
+            } else {
+              primary.textContent = "Browse downloads";
+              meta.textContent = release.tag_name || "";
+            }
+            if (others.length) {
+              const links = others
+                .map(
+                  (candidate) =>
+                    `<a class="link" href="${candidate.asset.browser_download_url}">${candidate.label}</a>`,
+                )
+                .join(" · ");
+              alt.innerHTML = `Also available: ${links} · <a class="link" href="${releasesUrl}">All downloads</a>`;
+            }
+          })
+          .catch(() => {
+            // Offline or rate-limited: the button still points at Releases.
+          });
+      })();
 
       // Theme switching — mirrors the app's useTheme hook and localStorage key.
       const themeButtons = document.querySelectorAll("[data-theme-btn]");
