@@ -124,6 +124,30 @@ export const JourneyWizard = () => {
     }
   };
 
+  const handleProfileSelected = async (profileId: string) => {
+    if (!window.api || !profileId) return;
+    try {
+      // Applying copies the connection — secrets included — into the active
+      // settings main-side, so the form only refills non-secret fields.
+      const view = await window.api.applyProfile(profileId);
+      setSettings(view);
+      if (view.s3) {
+        setEndpointUrl(view.s3.endpointUrl);
+        setRegion(view.s3.region);
+        setBucketName(view.s3.bucketName);
+        setViewEndpoint(view.s3.viewEndpoint);
+        setBucketUrl(view.s3.bucketUrl);
+        setPathStyle(view.s3.pathStyle);
+        setUploadConcurrency(view.s3.uploadConcurrency);
+        setPublicRead(view.s3.publicRead);
+      }
+      setAccessKeyId("");
+      setSecretAccessKey("");
+    } catch {
+      setErrorMessage("Failed to load the saved connection.");
+    }
+  };
+
   const hasSavedAccessKey = Boolean(settings?.s3?.hasAccessKey);
   const hasSavedSecretKey = Boolean(settings?.s3?.hasSecretKey);
   const isS3Valid =
@@ -375,6 +399,28 @@ export const JourneyWizard = () => {
                   settingsTouchedRef.current = true;
                 }}
               >
+                {settings?.profiles.length ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="jw-saved-connection" className="linear-label">
+                      Saved connections
+                    </label>
+                    <select
+                      id="jw-saved-connection"
+                      className="linear-select"
+                      value=""
+                      onChange={(event) => {
+                        void handleProfileSelected(event.target.value);
+                      }}
+                    >
+                      <option value="">Use a saved connection…</option>
+                      {settings.profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="jw-endpoint-url" className="linear-label">
                     Endpoint URL

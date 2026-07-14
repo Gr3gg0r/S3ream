@@ -160,6 +160,9 @@ function App() {
   const [s3UploadConcurrency, setS3UploadConcurrency] = useState(4);
   const [s3AccessKeyId, setS3AccessKeyId] = useState("");
   const [s3SecretAccessKey, setS3SecretAccessKey] = useState("");
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
   const headerHistoryCheckboxRef = useRef<HTMLInputElement>(null);
   const singleActiveJobIdRef = useRef<string | null>(null);
   const elapsedTimerRef = useRef<number | null>(null);
@@ -582,9 +585,23 @@ function App() {
     }
   };
 
+  const fillSettingsForm = useCallback((view: AppSettingsView) => {
+    const s3 = view.s3;
+    setS3EndpointUrl(s3?.endpointUrl ?? "");
+    setS3BucketName(s3?.bucketName ?? "");
+    setS3Region(s3?.region ?? "");
+    setS3ViewEndpoint(s3?.viewEndpoint ?? "");
+    setS3BucketUrl(s3?.bucketUrl ?? "");
+    setS3PathStyle(s3?.pathStyle ?? true);
+    setS3PublicRead(s3?.publicRead ?? true);
+    setS3UploadConcurrency(s3?.uploadConcurrency ?? 4);
+  }, []);
+
   const openSettings = useCallback(() => {
     setS3AccessKeyId("");
     setS3SecretAccessKey("");
+    setSelectedProfileId("");
+    setProfileName("");
     setIsSettingsOpen(true);
     if (!window.api) return;
     // Always refetch: the Simple journey may have saved settings this session.
@@ -592,20 +609,12 @@ function App() {
       .getSettings()
       .then((view) => {
         setSettingsView(view);
-        const s3 = view.s3;
-        setS3EndpointUrl(s3?.endpointUrl ?? "");
-        setS3BucketName(s3?.bucketName ?? "");
-        setS3Region(s3?.region ?? "");
-        setS3ViewEndpoint(s3?.viewEndpoint ?? "");
-        setS3BucketUrl(s3?.bucketUrl ?? "");
-        setS3PathStyle(s3?.pathStyle ?? true);
-        setS3PublicRead(s3?.publicRead ?? true);
-        setS3UploadConcurrency(s3?.uploadConcurrency ?? 4);
+        fillSettingsForm(view);
       })
       .catch(() => {
         // Settings are optional; the form stays blank.
       });
-  }, []);
+  }, [fillSettingsForm]);
 
   const handleSaveSettings = async (event: FormEvent) => {
     event.preventDefault();
@@ -631,6 +640,78 @@ function App() {
       pushMessage(`Failed to save settings: ${formatError(error)}`);
     } finally {
       setSettingsSaving(false);
+    }
+  };
+
+  const handleApplyProfile = async () => {
+    if (!window.api || !selectedProfileId || profileBusy) return;
+    setProfileBusy(true);
+    try {
+      const view = await window.api.applyProfile(selectedProfileId);
+      setSettingsView(view);
+      fillSettingsForm(view);
+      setS3AccessKeyId("");
+      setS3SecretAccessKey("");
+      const name = view.profiles.find((profile) => profile.id === selectedProfileId)?.name;
+      pushMessage(name ? `Loaded "${name}".` : "Connection loaded.");
+    } catch (error) {
+      pushMessage(`Failed to load connection: ${formatError(error)}`);
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!window.api || !selectedProfileId || profileBusy) return;
+    setProfileBusy(true);
+    try {
+      const view = await window.api.deleteProfile(selectedProfileId);
+      setSettingsView(view);
+      setSelectedProfileId("");
+      pushMessage("Connection deleted.");
+    } catch (error) {
+      pushMessage(`Failed to delete connection: ${formatError(error)}`);
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!window.api || profileBusy) return;
+    const name = profileName.trim();
+    if (!name) {
+      pushMessage("Enter a name for the connection first.");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      // Overwrite when the name matches an existing connection; otherwise create.
+      const existing = settingsView?.profiles.find(
+        (profile) => profile.name.toLowerCase() === name.toLowerCase(),
+      );
+      const view = await window.api.saveProfile({
+        id: existing?.id,
+        name,
+        settings: {
+          endpointUrl: s3EndpointUrl.trim(),
+          region: s3Region.trim() || "us-east-1",
+          bucketName: s3BucketName.trim(),
+          bucketUrl: s3BucketUrl.trim(),
+          viewEndpoint: s3ViewEndpoint.trim(),
+          pathStyle: s3PathStyle,
+          uploadConcurrency: s3UploadConcurrency,
+          publicRead: s3PublicRead,
+          accessKeyId: s3AccessKeyId.trim(),
+          secretAccessKey: s3SecretAccessKey.trim(),
+        },
+      });
+      setSettingsView(view);
+      setProfileName("");
+      pushMessage(existing ? `Connection "${name}" updated.` : `Connection "${name}" saved.`);
+    } catch (error) {
+      pushMessage(`Failed to save connection: ${formatError(error)}`);
+    } finally {
+      setProfileBusy(false);
     }
   };
 
@@ -1669,6 +1750,50 @@ function App() {
                   Close
                 </button>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="s3-saved-connection" className="linear-label">
+                  Saved connections
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    id="s3-saved-connection"
+                    className="linear-select min-w-0 flex-1"
+                    value={selectedProfileId}
+                    onChange={(event) => setSelectedProfileId(event.target.value)}
+                    disabled={!settingsView?.profiles.length}
+                  >
+                    <option value="">
+                      {settingsView?.profiles.length
+                        ? "Choose a connection…"
+                        : "No saved connections"}
+                    </option>
+                    {settingsView?.profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="linear-btn linear-btn-secondary linear-btn-sm"
+                    onClick={handleApplyProfile}
+                    disabled={!selectedProfileId || profileBusy}
+                  >
+                    Load
+                  </button>
+                  <button
+                    type="button"
+                    className="linear-btn linear-btn-secondary linear-btn-sm"
+                    onClick={handleDeleteProfile}
+                    disabled={!selectedProfileId || profileBusy}
+                  >
+                    Delete
+                  </button>
+                </div>
+                <span className="linear-hint">
+                  Loading a connection makes it the active S3 destination — credentials included.
+                </span>
+              </div>
               <form className="flex flex-col gap-4" onSubmit={handleSaveSettings}>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="s3-endpoint-url" className="linear-label">
@@ -1816,6 +1941,34 @@ function App() {
                     ? "Stored locally on this machine, encrypted by your OS."
                     : "Stored locally on this machine (OS encryption unavailable)."}
                 </span>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="s3-profile-name" className="linear-label">
+                    Save as connection
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      id="s3-profile-name"
+                      type="text"
+                      value={profileName}
+                      onChange={(event) => setProfileName(event.target.value)}
+                      placeholder='e.g. "Work R2" or "Local RustFS"'
+                      className="linear-input min-w-0 flex-1"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="linear-btn linear-btn-secondary linear-btn-sm"
+                      onClick={handleSaveProfile}
+                      disabled={profileBusy || !profileName.trim()}
+                    >
+                      Save as connection
+                    </button>
+                  </div>
+                  <span className="linear-hint">
+                    Stores the fields above — credentials included — as a named, reusable
+                    connection. Saving with an existing name overwrites it.
+                  </span>
+                </div>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"

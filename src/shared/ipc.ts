@@ -51,22 +51,47 @@ export interface S3SettingsInput {
 }
 
 /**
+ * Renderer-facing view of saved S3 settings. Secrets are never shipped to the
+ * renderer — only whether they exist.
+ */
+export interface MaskedS3SettingsView {
+  endpointUrl: string;
+  region: string;
+  bucketName: string;
+  bucketUrl: string;
+  viewEndpoint: string;
+  pathStyle: boolean;
+  publicRead: boolean;
+  uploadConcurrency: number;
+  hasAccessKey: boolean;
+  hasSecretKey: boolean;
+}
+
+/** A named, reusable S3 connection stored alongside the active settings. */
+export interface SavedConnectionView {
+  id: string;
+  name: string;
+  s3: MaskedS3SettingsView;
+}
+
+/**
+ * Creates or updates a saved connection. When `id` is provided the matching
+ * connection is overwritten (empty secrets keep that connection's stored
+ * values); otherwise a new connection is created.
+ */
+export interface SaveProfileInput {
+  id?: string;
+  name: string;
+  settings: S3SettingsInput;
+}
+
+/**
  * Renderer-facing view of the saved settings. Secrets are never shipped to
  * the renderer — only whether they exist.
  */
 export interface AppSettingsView {
-  s3: {
-    endpointUrl: string;
-    region: string;
-    bucketName: string;
-    bucketUrl: string;
-    viewEndpoint: string;
-    pathStyle: boolean;
-    publicRead: boolean;
-    uploadConcurrency: number;
-    hasAccessKey: boolean;
-    hasSecretKey: boolean;
-  } | null;
+  s3: MaskedS3SettingsView | null;
+  profiles: SavedConnectionView[];
   encryptionAvailable: boolean;
 }
 
@@ -210,6 +235,9 @@ export interface ExposedBridge {
   getPathForFile(file: File): string;
   getSettings(): Promise<AppSettingsView>;
   saveSettings(settings: S3SettingsInput): Promise<AppSettingsView>;
+  saveProfile(input: SaveProfileInput): Promise<AppSettingsView>;
+  deleteProfile(id: string): Promise<AppSettingsView>;
+  applyProfile(id: string): Promise<AppSettingsView>;
 }
 
 declare global {

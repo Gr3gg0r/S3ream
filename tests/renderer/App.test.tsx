@@ -50,8 +50,11 @@ const installBridge = () => {
     listHistory: listHistoryMock,
     deleteHistory: vi.fn(async () => {}),
     getPathForFile: vi.fn((file: File) => `/videos/${file.name}`),
-    getSettings: vi.fn(async () => ({ s3: null, encryptionAvailable: false })),
-    saveSettings: vi.fn(async () => ({ s3: null, encryptionAvailable: false })),
+    getSettings: vi.fn(async () => ({ s3: null, profiles: [], encryptionAvailable: false })),
+    saveSettings: vi.fn(async () => ({ s3: null, profiles: [], encryptionAvailable: false })),
+    saveProfile: vi.fn(async () => ({ s3: null, profiles: [], encryptionAvailable: false })),
+    deleteProfile: vi.fn(async () => ({ s3: null, profiles: [], encryptionAvailable: false })),
+    applyProfile: vi.fn(async () => ({ s3: null, profiles: [], encryptionAvailable: false })),
   };
   window.api = api;
   bridgeApi = api;
@@ -373,6 +376,7 @@ describe("S3 settings modal", () => {
         hasAccessKey: true,
         hasSecretKey: true,
       },
+      profiles: [],
       encryptionAvailable: true,
     });
     render(<App />);
@@ -385,5 +389,108 @@ describe("S3 settings modal", () => {
     expect(within(dialog).getByLabelText("Bucket")).toHaveValue("saved-bucket");
     expect(within(dialog).getByLabelText("Region")).toHaveValue("eu-west-1");
     expect(within(dialog).getByText(/Saved for bucket saved-bucket/)).toBeInTheDocument();
+  });
+
+  it("lists saved connections and loads one into the form", async () => {
+    const profileView = {
+      id: "profile-1",
+      name: "Local RustFS",
+      s3: {
+        endpointUrl: "http://localhost:9000",
+        region: "us-east-1",
+        bucketName: "rustfs-bucket",
+        bucketUrl: "",
+        viewEndpoint: "",
+        pathStyle: true,
+        uploadConcurrency: 4,
+        publicRead: true,
+        hasAccessKey: true,
+        hasSecretKey: true,
+      },
+    };
+    vi.mocked(bridgeApi.getSettings).mockResolvedValue({
+      s3: null,
+      profiles: [profileView],
+      encryptionAvailable: true,
+    });
+    vi.mocked(bridgeApi.applyProfile).mockResolvedValue({
+      s3: profileView.s3,
+      profiles: [profileView],
+      encryptionAvailable: true,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "S3 settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "S3 settings" });
+    const select = await within(dialog).findByLabelText("Saved connections");
+    expect(within(select as HTMLElement).getByText("Local RustFS")).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "profile-1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Load" }));
+
+    await vi.waitFor(() => expect(bridgeApi.applyProfile).toHaveBeenCalledWith("profile-1"));
+    await vi.waitFor(() =>
+      expect(within(dialog).getByLabelText("Endpoint URL")).toHaveValue("http://localhost:9000"),
+    );
+    expect(within(dialog).getByLabelText("Bucket")).toHaveValue("rustfs-bucket");
+  });
+
+  it("saves the form as a named connection", async () => {
+    vi.mocked(bridgeApi.saveProfile).mockResolvedValue({
+      s3: null,
+      profiles: [
+        {
+          id: "profile-9",
+          name: "Work R2",
+          s3: {
+            endpointUrl: "https://r2.example.com",
+            region: "auto",
+            bucketName: "work",
+            bucketUrl: "",
+            viewEndpoint: "",
+            pathStyle: false,
+            uploadConcurrency: 4,
+            publicRead: true,
+            hasAccessKey: true,
+            hasSecretKey: true,
+          },
+        },
+      ],
+      encryptionAvailable: true,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "S3 settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "S3 settings" });
+    fireEvent.change(within(dialog).getByLabelText("Endpoint URL"), {
+      target: { value: "https://r2.example.com" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Bucket"), { target: { value: "work" } });
+    fireEvent.change(within(dialog).getByLabelText("Access key"), { target: { value: "AKIA" } });
+    fireEvent.change(within(dialog).getByLabelText("Secret key"), {
+      target: { value: "secret" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Save as connection"), {
+      target: { value: "Work R2" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save as connection" }));
+
+    await vi.waitFor(() => expect(bridgeApi.saveProfile).toHaveBeenCalled());
+    expect(bridgeApi.saveProfile).toHaveBeenCalledWith({
+      id: undefined,
+      name: "Work R2",
+      settings: expect.objectContaining({
+        endpointUrl: "https://r2.example.com",
+        bucketName: "work",
+        accessKeyId: "AKIA",
+        secretAccessKey: "secret",
+      }),
+    });
+    // The refreshed view lands in the dropdown.
+    await vi.waitFor(() =>
+      expect(within(dialog).getByText("Work R2", { selector: "option" })).toBeInTheDocument(),
+    );
   });
 });

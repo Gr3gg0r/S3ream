@@ -233,6 +233,7 @@ Key channels:
 - `jobs:update` / `jobs:log` (main → renderer push for batch mode)
 - `history:list` / `history:delete`
 - `settings:get` / `settings:save` (S3 connection settings; secrets stay main-side, the renderer only sees `hasAccessKey`/`hasSecretKey`)
+- `settings:save-profile` / `settings:delete-profile` / `settings:apply-profile` (named saved connections; applying copies a profile over the active settings and reconfigures the S3 client)
 
 `SUPPORTED_VIDEO_EXTENSIONS` is exported from `src/shared/ipc.ts` and shared by the main-process queue validation and the renderer DropZone. `jobs:process-single` accepts an optional `destination` (`{ type: "s3" }` or `{ type: "local", directory }`); local jobs skip the upload and return the manifest file path in `manifestUrl`.
 
@@ -271,6 +272,8 @@ Cancellation threads an `AbortSignal` through probe, encode (execa `cancelSignal
 - Secrets are encrypted at rest via `safeStorage` when the OS keychain is available, with an honest plaintext fallback (`getView().encryptionAvailable` tells the renderer which mode is active).
 - Empty secret fields on save mean "keep the stored value". The renderer-facing view only exposes `hasAccessKey` / `hasSecretKey` — raw secrets never cross IPC.
 - Undecryptable secrets (lost keychain entry) are treated as unset with a warning instead of crashing startup.
+- Named saved connections live in a `profiles` array alongside the active `s3` block (each profile holds a full settings block with its own encrypted secrets). The active `s3` block stays the single source of truth consumed by the S3 client and pipeline. `saveProfile` upserts by id (empty secrets keep that profile's stored values), `deleteProfile` removes, and `applyProfile` deep-copies a profile over the active block — applying is a server-side copy, so secrets still never cross IPC. Load validation accepts the `s3` block and the `profiles` array independently, dropping malformed entries.
+- Saved connections surface in two places: the settings modal (select + Load/Delete, plus a "Save as connection" name field — same-name saves overwrite) and the wizard destination step (a picker shown only when profiles exist; choosing one applies it and refills the non-secret fields).
 
 ### S3 Client (`minioClient.ts`)
 

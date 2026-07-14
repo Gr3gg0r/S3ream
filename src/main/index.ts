@@ -13,6 +13,7 @@ import type {
   FolderScanResult,
   QueueControlAction,
   QueueRequest,
+  SaveProfileInput,
   SingleProcessRequest,
   S3SettingsInput,
 } from "@shared/ipc";
@@ -227,6 +228,22 @@ ipcMain.handle("settings:get", async () => settingsService.getView());
 
 ipcMain.handle("settings:save", async (_event, input: S3SettingsInput) => {
   const resolved = settingsService.save(input);
+  configureS3(resolved);
+  return settingsService.getView();
+});
+
+ipcMain.handle("settings:save-profile", async (_event, input: SaveProfileInput) => {
+  settingsService.saveProfile(input);
+  return settingsService.getView();
+});
+
+ipcMain.handle("settings:delete-profile", async (_event, id: string) => {
+  settingsService.deleteProfile(id);
+  return settingsService.getView();
+});
+
+ipcMain.handle("settings:apply-profile", async (_event, id: string) => {
+  const resolved = settingsService.applyProfile(id);
   configureS3(resolved);
   return settingsService.getView();
 });

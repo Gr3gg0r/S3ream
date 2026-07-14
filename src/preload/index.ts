@@ -11,6 +11,7 @@ import type {
   SingleProcessResult,
   SingleProcessProgress,
   QueueUpdate,
+  SaveProfileInput,
   S3SettingsInput,
 } from "@shared/ipc";
 
@@ -49,6 +50,12 @@ const api = {
   getSettings: (): Promise<AppSettingsView> => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: S3SettingsInput): Promise<AppSettingsView> =>
     ipcRenderer.invoke("settings:save", settings),
+  saveProfile: (input: SaveProfileInput): Promise<AppSettingsView> =>
+    ipcRenderer.invoke("settings:save-profile", input),
+  deleteProfile: (id: string): Promise<AppSettingsView> =>
+    ipcRenderer.invoke("settings:delete-profile", id),
+  applyProfile: (id: string): Promise<AppSettingsView> =>
+    ipcRenderer.invoke("settings:apply-profile", id),
 };
 
 contextBridge.exposeInMainWorld("api", api);

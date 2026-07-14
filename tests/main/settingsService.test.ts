@@ -36,7 +36,7 @@ describe("SettingsService", () => {
   it("starts with no settings and reports encryption as unavailable", () => {
     const { service } = createService();
     expect(service.getS3Settings()).toBeNull();
-    expect(service.getView()).toEqual({ s3: null, encryptionAvailable: false });
+    expect(service.getView()).toEqual({ s3: null, profiles: [], encryptionAvailable: false });
   });
 
   it("round-trips settings in plaintext when OS encryption is unavailable", () => {
@@ -171,5 +171,165 @@ describe("SettingsService", () => {
     expect(service.getView().s3?.hasAccessKey).toBe(false);
     expect(service.getView().s3?.hasSecretKey).toBe(false);
     expect(warn).toHaveBeenCalled();
+  });
+
+  describe("saved connections (profiles)", () => {
+    it("creates a profile and lists it in the view with masked secrets", () => {
+      const { service } = createService();
+      service.saveProfile({ name: "Local RustFS", settings: baseInput });
+      const view = service.getView();
+      expect(view.profiles).toHaveLength(1);
+      const profile = view.profiles[0];
+      expect(profile.name).toBe("Local RustFS");
+      expect(profile.id).toBeTruthy();
+      expect(profile.s3.bucketName).toBe("videos");
+      expect(profile.s3.hasAccessKey).toBe(true);
+      expect(profile.s3.hasSecretKey).toBe(true);
+      const serialized = JSON.stringify(view);
+      expect(serialized).not.toContain("super-secret-value");
+      expect(serialized).not.toContain("AKIAEXAMPLE");
+      // Saving a profile does not touch the active settings.
+      expect(view.s3).toBeNull();
+      expect(service.getS3Settings()).toBeNull();
+    });
+
+    it("requires a non-empty connection name", () => {
+      const { service } = createService();
+      expect(() => service.saveProfile({ name: "   ", settings: baseInput })).toThrow(
+        /name is required/i,
+      );
+      expect(service.getView().profiles).toHaveLength(0);
+    });
+
+    it("updates an existing profile by id and keeps its secrets when fields are empty", () => {
+      const { service } = createService();
+      service.saveProfile({ name: "Work R2", settings: baseInput });
+      const created = service.getView().profiles[0];
+
+      service.saveProfile({
+        id: created.id,
+        name: "Work R2 (renamed)",
+        settings: {
+          ...baseInput,
+          bucketName: "other-bucket",
+          accessKeyId: "",
+          secretAccessKey: "",
+        },
+      });
+
+      const view = service.getView();
+      expect(view.profiles).toHaveLength(1);
+      expect(view.profiles[0].id).toBe(created.id);
+      expect(view.profiles[0].name).toBe("Work R2 (renamed)");
+      expect(view.profiles[0].s3.bucketName).toBe("other-bucket");
+      // Empty secret fields keep this profile's stored secrets — not the
+      // active settings' secrets (there are none here).
+      expect(view.profiles[0].s3.hasAccessKey).toBe(true);
+      expect(view.profiles[0].s3.hasSecretKey).toBe(true);
+    });
+
+    it("encrypts profile secrets at rest when OS encryption is available", () => {
+      vi.spyOn(safeStorage, "isEncryptionAvailable").mockReturnValue(true);
+      vi.spyOn(safeStorage, "encryptString").mockImplementation((value: string) =>
+        Buffer.from(`enc:${value}`, "utf-8"),
+      );
+      vi.spyOn(safeStorage, "decryptString").mockImplementation((buffer: Buffer) =>
+        buffer.toString("utf-8").replace(/^enc:/, ""),
+      );
+
+      const { service, file } = createService();
+      service.saveProfile({ name: "Encrypted", settings: baseInput });
+
+      const raw = readFileSync(file, "utf-8");
+      const stored = JSON.parse(raw);
+      expect(stored.profiles[0].s3.secrets.format).toBe("enc");
+      expect(raw).not.toContain("super-secret-value");
+      expect(raw).not.toContain("AKIAEXAMPLE");
+    });
+
+    it("applies a profile by copying it over the active settings", () => {
+      const { service } = createService();
+      service.saveProfile({ name: "Local RustFS", settings: baseInput });
+      const profileId = service.getView().profiles[0].id;
+
+      const resolved = service.applyProfile(profileId);
+      expect(resolved).toEqual(baseInput);
+      expect(service.getS3Settings()).toEqual(baseInput);
+      expect(service.getView().s3?.bucketName).toBe("videos");
+
+      // Later edits to the profile must not alias the active settings.
+      service.saveProfile({
+        id: profileId,
+        name: "Local RustFS",
+        settings: { ...baseInput, bucketName: "mutated" },
+      });
+      expect(service.getS3Settings()?.bucketName).toBe("videos");
+    });
+
+    it("throws when applying an unknown profile id", () => {
+      const { service } = createService();
+      expect(() => service.applyProfile("does-not-exist")).toThrow(/not found/i);
+    });
+
+    it("deletes a profile and ignores unknown ids", () => {
+      const { service } = createService();
+      service.saveProfile({ name: "One", settings: baseInput });
+      service.saveProfile({ name: "Two", settings: baseInput });
+      const [first] = service.getView().profiles;
+
+      service.deleteProfile(first.id);
+      const view = service.getView();
+      expect(view.profiles).toHaveLength(1);
+      expect(view.profiles[0].name).toBe("Two");
+
+      // No-op for unknown ids — and deleting never touches active settings.
+      service.deleteProfile("does-not-exist");
+      expect(service.getView().profiles).toHaveLength(1);
+    });
+
+    it("round-trips profiles through a fresh instance", () => {
+      const { service, dir } = createService();
+      service.saveProfile({ name: "Persisted", settings: baseInput });
+      service.applyProfile(service.getView().profiles[0].id);
+
+      vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+      const reloaded = new SettingsService();
+      expect(reloaded.getView().profiles).toHaveLength(1);
+      expect(reloaded.getView().profiles[0].name).toBe("Persisted");
+      expect(reloaded.getS3Settings()).toEqual(baseInput);
+    });
+
+    it("drops malformed profile entries on load but keeps valid ones", () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "s3ream-settings-"));
+      vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+      writeFileSync(
+        path.join(dir, "settings.json"),
+        JSON.stringify({
+          profiles: [
+            {
+              id: "ok",
+              name: "Good",
+              s3: {
+                endpointUrl: "http://x",
+                secrets: {
+                  format: "plain",
+                  accessKeyId: "a",
+                  secretAccessKey: "b",
+                },
+              },
+            },
+            { id: "", name: "No id" },
+            { name: "No secrets", s3: { endpointUrl: "http://y" } },
+            "not an object",
+          ],
+        }),
+        "utf-8",
+      );
+      const service = new SettingsService();
+      const view = service.getView();
+      expect(view.profiles).toHaveLength(1);
+      expect(view.profiles[0].name).toBe("Good");
+      expect(view.profiles[0].s3.hasAccessKey).toBe(true);
+    });
   });
 });
