@@ -1,6 +1,6 @@
 {
   "name": "s3ream",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Open-source Electron desktop app that converts any video (MP4, MOV, MKV) into adaptive multi-bitrate HLS — master .m3u8 manifest plus 240p–4K renditions — locally with FFmpeg, then uploads straight to any S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, RustFS, MinIO). No transcoding server; credentials stay local and encrypted.",
   "private": true,
   "main": "dist/main/index.js",
