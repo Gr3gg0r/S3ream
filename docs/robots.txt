@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://gr3gg0r.github.io/Hulesa/sitemap.xml
+Sitemap: https://gr3gg0r.github.io/hulesa/sitemap.xml
