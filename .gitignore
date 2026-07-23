@@ -27,3 +27,6 @@ yarn.lock
 # Playwright MCP QA artifacts
 .playwright-mcp/
 docker-compose.override.yml
+
+# Claude Code personal overrides
+.claude/settings.local.json

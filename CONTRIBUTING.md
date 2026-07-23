@@ -1,4 +1,4 @@
-# Contributing to S3ream
+# Contributing to hulesa
 
 Thanks for helping out. The workflow is intentionally simple: fork, branch,
 make the change, run the quality gate, open a PR.
@@ -45,8 +45,10 @@ Guidelines:
   tracked, and it carries local-dev defaults only. End users configure
   everything in the app's settings UI — there is no `.env.example` to copy.
 
-`AGENTS.md` documents the architecture, conventions, and common tasks in
-detail — read it before non-trivial changes.
+`CLAUDE.md` documents the architecture, conventions, and common tasks in
+detail — read it before non-trivial changes. The project is developed
+Claude-first: Claude Code picks it up automatically, and it doubles as the
+onboarding doc for human contributors.
 
 ## Commit messages
 
