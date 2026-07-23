@@ -17,7 +17,7 @@ const ffmpegPath = ffmpegInstaller.path;
 const ffprobePath = ffprobeInstaller.path;
 
 const countTempDirs = () =>
-  readdirSync(tmpdir()).filter((name) => name.startsWith("s3ream-hls-")).length;
+  readdirSync(tmpdir()).filter((name) => name.startsWith("hulesa-hls-")).length;
 
 beforeAll(async () => {
   // Mirror videoPipeline.prepareBinaries for installs that skipped scripts.
@@ -29,7 +29,7 @@ beforeAll(async () => {
 
 describe("probeVideoMetadata (real ffprobe)", () => {
   it("reads duration, dimensions, and frame rate", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-itest-"));
     try {
       const video = path.join(dir, "probe.mp4");
       await generateTestVideo(video);
@@ -47,7 +47,7 @@ describe("probeVideoMetadata (real ffprobe)", () => {
 
 describe("convertToHls (real ffmpeg)", () => {
   it("produces a master manifest, variant playlist, and segments", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-itest-"));
     let outputDir: string | null = null;
     try {
       const video = path.join(dir, "convert.mp4");
@@ -77,7 +77,7 @@ describe("convertToHls (real ffmpeg)", () => {
   });
 
   it("cleans up its temp directory when encoding fails", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-itest-"));
     try {
       const garbage = path.join(dir, "garbage.mp4");
       await fs.writeFile(garbage, "this is definitely not a video file");

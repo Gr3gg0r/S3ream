@@ -19,7 +19,7 @@ describe("processVideoJob with a local destination", () => {
   });
 
   it("converts a video and writes the HLS tree to a local folder", async () => {
-    const workDir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-local-"));
+    const workDir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-itest-local-"));
     try {
       const video = path.join(workDir, "clip.mp4");
       await generateTestVideo(video);

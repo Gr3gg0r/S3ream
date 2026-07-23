@@ -26,7 +26,7 @@ reasoned response within 30 days.
 
 ## Scope Notes
 
-S3ream is a local-first desktop app:
+hulesa is a local-first desktop app:
 
 - S3 credentials are stored only on the user's machine (encrypted via the OS
   keychain through Electron's `safeStorage` when available, with an explicit
@@ -44,4 +44,4 @@ S3ream is a local-first desktop app:
 
 Out of scope: issues requiring physical access to the user's machine,
 self-XSS, and vulnerabilities in third-party dependencies without a
-demonstrated exploit path through S3ream (report those upstream).
+demonstrated exploit path through hulesa (report those upstream).

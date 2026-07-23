@@ -9,8 +9,8 @@ import { SettingsService } from "../../src/main/services/settingsService";
 // The electron mock resolves app.getPath("userData") from this env var at
 // construction time, so each test gets a pristine store.
 const createService = () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "s3ream-settings-"));
-  vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+  const dir = mkdtempSync(path.join(tmpdir(), "hulesa-settings-"));
+  vi.stubEnv("HULESA_TEST_USER_DATA", dir);
   return { service: new SettingsService(), dir, file: path.join(dir, "settings.json") };
 };
 
@@ -51,7 +51,7 @@ describe("SettingsService", () => {
     expect(readFileSync(file, "utf-8")).toContain("super-secret-value");
 
     // A fresh instance loads the same values back from disk.
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     const reloaded = new SettingsService();
     expect(reloaded.getS3Settings()).toEqual(resolved);
   });
@@ -70,7 +70,7 @@ describe("SettingsService", () => {
     delete stored.s3.uploadConcurrency;
     delete stored.s3.publicRead;
     writeFileSync(file, JSON.stringify(stored), "utf-8");
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     const reloaded = new SettingsService();
     expect(reloaded.getS3Settings()?.uploadConcurrency).toBe(4);
     // Legacy stores predate the toggle, so they keep the historical
@@ -106,8 +106,8 @@ describe("SettingsService", () => {
 
   it("recovers from a corrupt settings file", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const dir = mkdtempSync(path.join(tmpdir(), "s3ream-settings-"));
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    const dir = mkdtempSync(path.join(tmpdir(), "hulesa-settings-"));
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     writeFileSync(path.join(dir, "settings.json"), "not valid json{", "utf-8");
     const service = new SettingsService();
     expect(service.getView().s3).toBeNull();
@@ -115,8 +115,8 @@ describe("SettingsService", () => {
   });
 
   it("ignores a settings file whose secrets block is missing", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "s3ream-settings-"));
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    const dir = mkdtempSync(path.join(tmpdir(), "hulesa-settings-"));
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     writeFileSync(
       path.join(dir, "settings.json"),
       JSON.stringify({ s3: { endpointUrl: "http://localhost:9000", bucketName: "videos" } }),
@@ -146,7 +146,7 @@ describe("SettingsService", () => {
     expect(raw).not.toContain("AKIAEXAMPLE");
 
     // A fresh instance decrypts the values back.
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     const reloaded = new SettingsService();
     expect(reloaded.getS3Settings()?.accessKeyId).toBe("AKIAEXAMPLE");
     expect(reloaded.getS3Settings()?.secretAccessKey).toBe("super-secret-value");
@@ -292,7 +292,7 @@ describe("SettingsService", () => {
       service.saveProfile({ name: "Persisted", settings: baseInput });
       service.applyProfile(service.getView().profiles[0].id);
 
-      vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+      vi.stubEnv("HULESA_TEST_USER_DATA", dir);
       const reloaded = new SettingsService();
       expect(reloaded.getView().profiles).toHaveLength(1);
       expect(reloaded.getView().profiles[0].name).toBe("Persisted");
@@ -300,8 +300,8 @@ describe("SettingsService", () => {
     });
 
     it("drops malformed profile entries on load but keeps valid ones", () => {
-      const dir = mkdtempSync(path.join(tmpdir(), "s3ream-settings-"));
-      vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+      const dir = mkdtempSync(path.join(tmpdir(), "hulesa-settings-"));
+      vi.stubEnv("HULESA_TEST_USER_DATA", dir);
       writeFileSync(
         path.join(dir, "settings.json"),
         JSON.stringify({

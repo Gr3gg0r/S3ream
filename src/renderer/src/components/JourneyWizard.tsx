@@ -554,7 +554,7 @@ export const JourneyWizard = () => {
                   </label>
                   <span className="linear-hint">
                     {publicRead
-                      ? "S3ream applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
+                      ? "hulesa applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
                       : "Objects stay private — you'll need signed URLs or your own bucket policy to play the streams."}
                   </span>
                 </div>

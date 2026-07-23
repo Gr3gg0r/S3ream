@@ -1,58 +1,60 @@
 <!doctype html>
-<html lang="en" data-theme="s3ream">
+<html lang="en" data-theme="hulesa">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>S3ream — Convert video to HLS on your desktop, stream from your own S3</title>
+    <title>hulesa — Convert video to HLS on your desktop, stream from your own S3</title>
     <meta
       name="description"
-      content="S3ream is a desktop app that converts video to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required."
+      content="hulesa is a desktop app that converts video to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required."
     />
-    <meta property="og:title" content="S3ream — Local video-to-HLS, straight to your S3 bucket" />
+    <meta property="og:title" content="hulesa — Local video-to-HLS, straight to your S3 bucket" />
     <meta
       property="og:description"
       content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://gr3gg0r.github.io/S3ream/" />
-    <meta property="og:site_name" content="S3ream" />
+    <meta property="og:url" content="https://gr3gg0r.github.io/hulesa/" />
+    <meta property="og:site_name" content="hulesa" />
     <meta property="og:locale" content="en_US" />
     <meta
       property="og:image"
-      content="https://gr3gg0r.github.io/S3ream/screenshots/simple-journey-light.png"
+      content="https://gr3gg0r.github.io/hulesa/screenshots/simple-journey-light.png"
     />
     <meta property="og:image:width" content="2800" />
     <meta property="og:image:height" content="1760" />
     <meta
       property="og:image:alt"
-      content="The S3ream Simple journey: drop a video, pick rendition qualities, choose an S3 or local destination."
+      content="The hulesa Simple journey: drop a video, pick rendition qualities, choose an S3 or local destination."
     />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="S3ream — Local video-to-HLS, straight to your S3 bucket" />
+    <meta name="twitter:title" content="hulesa — Local video-to-HLS, straight to your S3 bucket" />
     <meta
       name="twitter:description"
       content="Drop a video, pick your renditions, and get an adaptive HLS stream uploaded to any S3-compatible storage. No server, no service, nothing in between."
     />
     <meta
       name="twitter:image"
-      content="https://gr3gg0r.github.io/S3ream/screenshots/simple-journey-light.png"
+      content="https://gr3gg0r.github.io/hulesa/screenshots/simple-journey-light.png"
     />
     <meta name="author" content="Shahfiq Shah" />
     <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
-    <link rel="canonical" href="https://gr3gg0r.github.io/S3ream/" />
+    <link rel="canonical" href="https://gr3gg0r.github.io/hulesa/" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "S3ream",
+        "name": "hulesa",
+        "alternateName": "hulesa HLS Converter",
         "applicationCategory": "MultimediaApplication",
         "operatingSystem": "macOS, Windows, Linux",
         "description": "Desktop app that converts video files to multi-bitrate HLS locally with FFmpeg and uploads the stream to any S3-compatible storage. No transcoding server required.",
-        "url": "https://gr3gg0r.github.io/S3ream/",
-        "codeRepository": "https://github.com/Gr3gg0r/S3ream",
-        "downloadUrl": "https://github.com/Gr3gg0r/S3ream/releases",
-        "softwareVersion": "1.0.0",
+        "keywords": "convert MP4 to HLS, HLS converter, video to HLS, adaptive bitrate streaming, m3u8, FFmpeg, S3 video streaming, self-hosted video",
+        "url": "https://gr3gg0r.github.io/hulesa/",
+        "codeRepository": "https://github.com/Gr3gg0r/hulesa",
+        "downloadUrl": "https://github.com/Gr3gg0r/hulesa/releases",
+        "softwareVersion": "1.0.1",
         "license": "https://opensource.org/license/mit",
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -70,6 +72,54 @@
         ]
       }
     </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is hulesa?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "hulesa is a free, open-source desktop app for macOS, Windows, and Linux that converts video files (MP4, MOV, MKV — anything FFmpeg reads) into an adaptive multi-bitrate HLS stream locally, then uploads the master .m3u8 playlist and renditions to any S3-compatible storage. No transcoding server or cloud service is involved."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I convert an MP4 to HLS without a transcoding server?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Drop the video into hulesa, pick the quality renditions you want (240p up to 4K), and choose your S3 destination. Encoding runs on your own machine with the bundled FFmpeg, and the finished HLS stream uploads straight to your bucket — ready to play in any HLS-capable player."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which storage providers does hulesa work with?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Any S3-compatible endpoint: AWS S3, Cloudflare R2, Backblaze B2, MinIO, RustFS, and self-hosted alternatives. You provide the endpoint, bucket, and credentials; hulesa uploads directly to it."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is hulesa free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. hulesa is free and open source under the MIT license. There is no paid tier, no account, and no usage limit — the only costs are whatever your own storage provider charges."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does hulesa send my videos or credentials anywhere?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Videos are encoded locally and uploaded only to the endpoint you configure. Credentials are stored on your machine, encrypted with your OS keychain when available, and never leave the app."
+            }
+          }
+        ]
+      }
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230A0A0A'/%3E%3Cpath d='M13 10.5v11l9-5.5z' fill='%23FAFAFA'/%3E%3C/svg%3E"
@@ -78,12 +128,12 @@
       // Applies the stored theme before first paint — same logic as the app's theme-init.js.
       (function () {
         try {
-          var stored = window.localStorage.getItem("s3ream-theme");
+          var stored = window.localStorage.getItem("hulesa-theme");
           if (stored !== "light" && stored !== "dark" && stored !== "system") stored = "system";
           var dark =
             stored === "dark" ||
             (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.setAttribute("data-theme", dark ? "s3reamdark" : "s3ream");
+          document.documentElement.setAttribute("data-theme", dark ? "hulesadark" : "hulesa");
         } catch (e) {}
       })();
     </script>
@@ -102,13 +152,13 @@
           <a
             href="#top"
             class="flex items-center gap-2 text-lg font-semibold"
-            aria-label="S3ream home"
+            aria-label="hulesa home"
           >
             <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
               <rect width="32" height="32" rx="8" fill="var(--color-primary)" />
               <path d="M13 10.5v11l9-5.5z" fill="var(--color-primary-content)" />
             </svg>
-            S3ream
+            hulesa
           </a>
         </div>
         <div class="navbar-end flex-1 gap-2 sm:gap-3">
@@ -192,7 +242,7 @@
           Convert video to HLS on your desktop. Stream it from your own S3 bucket.
         </h1>
         <p class="mx-auto mt-6 max-w-2xl text-base text-base-content/70 sm:text-lg">
-          S3ream is a desktop app that turns a video file into an adaptive HLS stream — a master
+          hulesa is a desktop app that turns a video file into an adaptive HLS stream — a master
           playlist plus multiple quality renditions — encoded locally with FFmpeg and uploaded
           straight to any S3-compatible storage. No transcoding server, no cloud service, nothing in
           between.
@@ -215,7 +265,7 @@
             Download
           </p>
           <h2 id="download-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
-            Get S3ream for your desktop
+            Get hulesa for your desktop
           </h2>
           <div data-download class="mt-8">
             <a
@@ -506,7 +556,7 @@
             From file to stream in one pass
           </h2>
           <p class="mt-3 text-base-content/70">
-            Everything happens on your machine. S3ream only talks to the S3 endpoint you configure.
+            Everything happens on your machine. hulesa only talks to the S3 endpoint you configure.
           </p>
         </div>
         <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
@@ -782,7 +832,7 @@
               >
                 <path d="M20 6L9 17l-5-5" />
               </svg>
-              S3ream is
+              hulesa is
             </h3>
             <ul class="mt-3 space-y-2 text-sm text-base-content/80">
               <li>
@@ -807,7 +857,7 @@
               >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
-              S3ream isn't
+              hulesa isn't
             </h3>
             <ul class="mt-3 space-y-2 text-sm text-base-content/80">
               <li>Not a video host or CDN — you bring the bucket and serve the files your way.</li>
@@ -837,8 +887,8 @@
           <div class="mockup-code text-sm">
             <pre
               data-prefix="$"
-            ><code>git clone https://github.com/<span data-repo-slug>Gr3gg0r/S3ream</span>.git</code></pre>
-            <pre data-prefix="$"><code>cd S3ream</code></pre>
+            ><code>git clone https://github.com/<span data-repo-slug>Gr3gg0r/hulesa</span>.git</code></pre>
+            <pre data-prefix="$"><code>cd hulesa</code></pre>
             <pre data-prefix="$"><code>pnpm install</code></pre>
             <pre
               data-prefix="$"
@@ -860,6 +910,72 @@
               Read the NOTICE
             </a>
           </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="pb-20" aria-labelledby="faq-title">
+        <div class="mx-auto mb-10 max-w-2xl text-center">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-base-content/50">
+            FAQ
+          </p>
+          <h2 id="faq-title" class="text-3xl font-bold tracking-tight sm:text-4xl">
+            Frequently asked questions
+          </h2>
+        </div>
+        <div class="mx-auto max-w-2xl space-y-3">
+          <details class="linear-card p-6 sm:p-8">
+            <summary class="text-lg font-semibold">
+              What is hulesa?
+            </summary>
+            <p class="mt-3 text-sm text-base-content/80">
+              hulesa is a free, open-source desktop app for macOS, Windows, and Linux that converts
+              video files (MP4, MOV, MKV — anything FFmpeg reads) into an adaptive multi-bitrate
+              HLS stream locally, then uploads the master .m3u8 playlist and renditions to any
+              S3-compatible storage. No transcoding server or cloud service is involved.
+            </p>
+          </details>
+          <details class="linear-card p-6 sm:p-8">
+            <summary class="text-lg font-semibold">
+              How do I convert an MP4 to HLS without a transcoding server?
+            </summary>
+            <p class="mt-3 text-sm text-base-content/80">
+              Drop the video into hulesa, pick the quality renditions you want (240p up to 4K), and
+              choose your S3 destination. Encoding runs on your own machine with the bundled
+              FFmpeg, and the finished HLS stream uploads straight to your bucket — ready to play
+              in any HLS-capable player.
+            </p>
+          </details>
+          <details class="linear-card p-6 sm:p-8">
+            <summary class="text-lg font-semibold">
+              Which storage providers does hulesa work with?
+            </summary>
+            <p class="mt-3 text-sm text-base-content/80">
+              Any S3-compatible endpoint: AWS S3, Cloudflare R2, Backblaze B2, MinIO, RustFS, and
+              self-hosted alternatives. You provide the endpoint, bucket, and credentials; hulesa
+              uploads directly to it.
+            </p>
+          </details>
+          <details class="linear-card p-6 sm:p-8">
+            <summary class="text-lg font-semibold">
+              Is hulesa free?
+            </summary>
+            <p class="mt-3 text-sm text-base-content/80">
+              Yes. hulesa is free and open source under the MIT license. There is no paid tier, no
+              account, and no usage limit — the only costs are whatever your own storage provider
+              charges.
+            </p>
+          </details>
+          <details class="linear-card p-6 sm:p-8">
+            <summary class="text-lg font-semibold">
+              Does hulesa send my videos or credentials anywhere?
+            </summary>
+            <p class="mt-3 text-sm text-base-content/80">
+              No. Videos are encoded locally and uploaded only to the endpoint you configure.
+              Credentials are stored on your machine, encrypted with your OS keychain when
+              available, and never leave the app.
+            </p>
+          </details>
         </div>
       </section>
 
@@ -889,7 +1005,7 @@
     <footer class="footer footer-center border-t border-base-content/10 p-8 text-base-content/60">
       <aside>
         <p>
-          <a data-repo-link href="#" target="_blank" rel="noopener" class="link">S3ream</a>
+          <a data-repo-link href="#" target="_blank" rel="noopener" class="link">hulesa</a>
           — MIT © 2025 Shahfiq Shah. Bundles FFmpeg, licensed under GPL-3.0; see
           <a data-repo-notice href="#" target="_blank" rel="noopener" class="link">NOTICE</a>.
         </p>
@@ -898,7 +1014,7 @@
 
     <script>
       // The GitHub repo URL lives here exactly once — update it if the handle changes.
-      const GITHUB_REPO = "https://github.com/Gr3gg0r/S3ream";
+      const GITHUB_REPO = "https://github.com/Gr3gg0r/hulesa";
 
       document.querySelectorAll("[data-repo-link]").forEach((el) => {
         el.href = GITHUB_REPO;
@@ -954,7 +1070,7 @@
           return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${Math.round(mb)} MB`;
         };
 
-        fetch("https://api.github.com/repos/Gr3gg0r/S3ream/releases/latest", {
+        fetch("https://api.github.com/repos/Gr3gg0r/hulesa/releases/latest", {
           headers: { Accept: "application/vnd.github+json" },
         })
           .then((response) =>
@@ -1018,26 +1134,26 @@
         const dark =
           preference === "dark" ||
           (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.setAttribute("data-theme", dark ? "s3reamdark" : "s3ream");
+        document.documentElement.setAttribute("data-theme", dark ? "hulesadark" : "hulesa");
         themeButtons.forEach((btn) => {
           const active = btn.dataset.themeBtn === preference;
           btn.setAttribute("aria-pressed", String(active));
           btn.dataset.active = String(active);
         });
       };
-      const stored = localStorage.getItem("s3ream-theme");
+      const stored = localStorage.getItem("hulesa-theme");
       applyTheme(
         stored === "light" || stored === "dark" || stored === "system" ? stored : "system",
       );
       themeButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
           const preference = btn.dataset.themeBtn;
-          localStorage.setItem("s3ream-theme", preference);
+          localStorage.setItem("hulesa-theme", preference);
           applyTheme(preference);
         });
       });
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-        if ((localStorage.getItem("s3ream-theme") || "system") === "system") applyTheme("system");
+        if ((localStorage.getItem("hulesa-theme") || "system") === "system") applyTheme("system");
       });
 
       // Screenshot tabs with arrow-key navigation.

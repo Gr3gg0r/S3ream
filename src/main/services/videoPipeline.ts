@@ -614,7 +614,7 @@ export const convertToHls = async (
   signal?: AbortSignal,
 ): Promise<ConversionResult> => {
   await prepareBinaries();
-  const outputDir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-hls-"));
+  const outputDir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-hls-"));
   try {
     const metadata = await probeVideoMetadata(inputFile, signal);
     const { variants, warnings } = determineVariantProfiles(metadata, requestedRenditions);

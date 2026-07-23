@@ -193,7 +193,7 @@ describe("determineVariantProfiles", () => {
 
 describe("collectFilesRecursively", () => {
   it("collects files across nested directories", async () => {
-    const root = await fs.mkdtemp(path.join(tmpdir(), "s3ream-collect-"));
+    const root = await fs.mkdtemp(path.join(tmpdir(), "hulesa-collect-"));
     try {
       await fs.mkdir(path.join(root, "240p"), { recursive: true });
       await fs.mkdir(path.join(root, "480p", "deep"), { recursive: true });
@@ -229,7 +229,7 @@ describe("createMasterManifest", () => {
   };
 
   it("writes a valid HLS master playlist", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-manifest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-manifest-"));
     try {
       const manifestPath = await createMasterManifest(
         dir,
@@ -251,7 +251,7 @@ describe("createMasterManifest", () => {
   });
 
   it("omits RESOLUTION and FRAME-RATE when unknown", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-manifest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-manifest-"));
     try {
       const manifestPath = await createMasterManifest(
         dir,
@@ -279,7 +279,7 @@ describe("probeVideoMetadata", () => {
 
   it("returns nulls instead of throwing for unreadable input", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const metadata = await probeVideoMetadata(path.join(tmpdir(), "s3ream-does-not-exist.mp4"));
+    const metadata = await probeVideoMetadata(path.join(tmpdir(), "hulesa-does-not-exist.mp4"));
     expect(metadata).toEqual({ durationMs: null, width: null, height: null, frameRate: null });
     warn.mockRestore();
   });

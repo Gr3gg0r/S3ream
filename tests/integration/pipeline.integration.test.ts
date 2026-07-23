@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanupBucket, generateTestVideo } from "./helpers";
 
 const endpoint = process.env.S3_TEST_ENDPOINT_URL ?? "http://localhost:9000";
-const bucket = `s3ream-itest-pipeline-${Date.now()}`;
+const bucket = `hulesa-itest-pipeline-${Date.now()}`;
 const objectKey = "itest/clip";
 
 const reachable = await fetch(endpoint)
@@ -42,7 +42,7 @@ describe.skipIf(!reachable)("processVideoJob end to end", () => {
   });
 
   it("converts a video, uploads HLS assets, and serves the manifest", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "s3ream-itest-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "hulesa-itest-"));
     try {
       const video = path.join(dir, "clip.mp4");
       await generateTestVideo(video);

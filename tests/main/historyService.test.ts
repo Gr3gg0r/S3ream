@@ -8,8 +8,8 @@ import { HistoryService } from "../../src/main/services/historyService";
 // The electron mock resolves app.getPath("userData") from this env var at
 // construction time, so each test gets a pristine store.
 const createService = () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "s3ream-hist-"));
-  vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+  const dir = mkdtempSync(path.join(tmpdir(), "hulesa-hist-"));
+  vi.stubEnv("HULESA_TEST_USER_DATA", dir);
   return { service: new HistoryService(), dir, file: path.join(dir, "history.json") };
 };
 
@@ -51,8 +51,8 @@ describe("HistoryService persistence", () => {
 
   it("recovers from a corrupt history file", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const dir = mkdtempSync(path.join(tmpdir(), "s3ream-hist-"));
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    const dir = mkdtempSync(path.join(tmpdir(), "hulesa-hist-"));
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     writeFileSync(path.join(dir, "history.json"), "not valid json{", "utf-8");
     const service = new HistoryService();
     expect(service.listJobs()).toEqual({ records: [], total: 0 });
@@ -63,8 +63,8 @@ describe("HistoryService persistence", () => {
 
   it("moves a corrupt history file aside instead of destroying it", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const dir = mkdtempSync(path.join(tmpdir(), "s3ream-hist-"));
-    vi.stubEnv("S3REAM_TEST_USER_DATA", dir);
+    const dir = mkdtempSync(path.join(tmpdir(), "hulesa-hist-"));
+    vi.stubEnv("HULESA_TEST_USER_DATA", dir);
     const file = path.join(dir, "history.json");
     writeFileSync(file, "not valid json{", "utf-8");
     const service = new HistoryService();

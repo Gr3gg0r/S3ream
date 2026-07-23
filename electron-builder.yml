@@ -1,5 +1,5 @@
-appId: com.s3ream.app
-productName: S3ream
+appId: com.hulesa.app
+productName: hulesa
 copyright: Copyright © 2025 Shahfiq Shah
 directories:
   output: release/${version}
