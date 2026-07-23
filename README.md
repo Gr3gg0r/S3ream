@@ -1,6 +1,6 @@
-# S3ream
+# hulesa — convert video to HLS locally, stream from your own S3
 
-[![CI](https://github.com/Gr3gg0r/S3ream/actions/workflows/ci.yml/badge.svg)](https://github.com/Gr3gg0r/S3ream/actions/workflows/ci.yml)
+[![CI](https://github.com/Gr3gg0r/hulesa/actions/workflows/ci.yml/badge.svg)](https://github.com/Gr3gg0r/hulesa/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-black.svg)](LICENSE)
 
 Electron desktop app that converts MP4 (or any FFmpeg-compatible video) into a multi-bitrate HLS stream locally and uploads the result straight to an S3-compatible object store — no transcoding server, no third-party service in between. Everything is configured in the app; a local RustFS Docker stack is included for development.

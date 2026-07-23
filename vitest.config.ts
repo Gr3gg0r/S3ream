@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 // Integration tests talk to a live RustFS container and FFmpeg binaries.
-// They only run with `pnpm run test:integration` (S3REAM_TEST_INTEGRATION=1).
-const runIntegration = process.env.S3REAM_TEST_INTEGRATION === "1";
+// They only run with `pnpm run test:integration` (HULESA_TEST_INTEGRATION=1).
+const runIntegration = process.env.HULESA_TEST_INTEGRATION === "1";
 
 export default defineConfig({
   resolve: {

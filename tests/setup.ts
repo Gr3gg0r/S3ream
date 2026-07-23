@@ -8,6 +8,6 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-if (!process.env.S3REAM_TEST_USER_DATA) {
-  process.env.S3REAM_TEST_USER_DATA = mkdtempSync(join(tmpdir(), "s3ream-test-userdata-"));
+if (!process.env.HULESA_TEST_USER_DATA) {
+  process.env.HULESA_TEST_USER_DATA = mkdtempSync(join(tmpdir(), "hulesa-test-userdata-"));
 }

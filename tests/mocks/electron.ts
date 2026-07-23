@@ -7,8 +7,8 @@
  * under test are provided.
  */
 export const app = {
-  getPath: (): string => process.env.S3REAM_TEST_USER_DATA ?? "/tmp/s3ream-test",
-  getName: (): string => "s3ream-test",
+  getPath: (): string => process.env.HULESA_TEST_USER_DATA ?? "/tmp/hulesa-test",
+  getName: (): string => "hulesa-test",
   getVersion: (): string => "0.0.0-test",
   isPackaged: false,
   whenReady: async (): Promise<void> => {},

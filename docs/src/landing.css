@@ -16,7 +16,7 @@
  * flipped between themes — only the status colors carry hue.
  */
 @plugin "daisyui/theme" {
-  name: "s3ream";
+  name: "hulesa";
   default: true;
   color-scheme: light;
   --color-base-100: #ffffff;
@@ -46,7 +46,7 @@
 }
 
 @plugin "daisyui/theme" {
-  name: "s3reamdark";
+  name: "hulesadark";
   prefersdark: true;
   color-scheme: dark;
   --color-base-100: #141414;
@@ -144,7 +144,7 @@
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
-  [data-theme="s3ream"] .glass-canvas {
+  [data-theme="hulesa"] .glass-canvas {
     background-color: #f4f4f5;
     background-image:
       radial-gradient(55rem 55rem at 8% -10%, rgba(10, 10, 10, 0.08), transparent 60%),
@@ -152,7 +152,7 @@
       radial-gradient(52rem 52rem at 85% 112%, rgba(255, 255, 255, 0.6), transparent 60%),
       radial-gradient(42rem 42rem at -5% 95%, rgba(10, 10, 10, 0.06), transparent 55%);
   }
-  [data-theme="s3reamdark"] .glass-canvas {
+  [data-theme="hulesadark"] .glass-canvas {
     background-color: #08080a;
     background-image:
       radial-gradient(58rem 58rem at 8% -12%, rgba(255, 255, 255, 0.07), transparent 60%),
@@ -170,16 +170,16 @@
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     backdrop-filter: blur(24px) saturate(180%);
   }
-  [data-theme="s3ream"] .linear-card,
-  [data-theme="s3ream"] .stats.linear-card {
+  [data-theme="hulesa"] .linear-card,
+  [data-theme="hulesa"] .stats.linear-card {
     background-color: color-mix(in srgb, white 62%, transparent);
     border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow:
       0 8px 32px rgba(31, 41, 99, 0.1),
       0 1px 2px rgba(16, 18, 27, 0.05);
   }
-  [data-theme="s3reamdark"] .linear-card,
-  [data-theme="s3reamdark"] .stats.linear-card {
+  [data-theme="hulesadark"] .linear-card,
+  [data-theme="hulesadark"] .stats.linear-card {
     background-color: rgba(22, 22, 26, 0.55);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
@@ -189,11 +189,11 @@
   .linear-well {
     border-radius: 10px;
   }
-  [data-theme="s3ream"] .linear-well {
+  [data-theme="hulesa"] .linear-well {
     background-color: rgba(255, 255, 255, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.5);
   }
-  [data-theme="s3reamdark"] .linear-well {
+  [data-theme="hulesadark"] .linear-well {
     background-color: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
@@ -206,11 +206,11 @@
     -webkit-backdrop-filter: blur(16px) saturate(160%);
     backdrop-filter: blur(16px) saturate(160%);
   }
-  [data-theme="s3ream"] .linear-segmented {
+  [data-theme="hulesa"] .linear-segmented {
     background-color: rgba(255, 255, 255, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.6);
   }
-  [data-theme="s3reamdark"] .linear-segmented {
+  [data-theme="hulesadark"] .linear-segmented {
     background-color: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
@@ -229,11 +229,11 @@
   .linear-segmented button[data-active="true"] {
     color: var(--color-base-content);
   }
-  [data-theme="s3ream"] .linear-segmented button[data-active="true"] {
+  [data-theme="hulesa"] .linear-segmented button[data-active="true"] {
     background-color: rgba(255, 255, 255, 0.9);
     box-shadow: 0 1px 3px rgba(16, 18, 27, 0.12);
   }
-  [data-theme="s3reamdark"] .linear-segmented button[data-active="true"] {
+  [data-theme="hulesadark"] .linear-segmented button[data-active="true"] {
     background-color: rgba(255, 255, 255, 0.14);
   }
 
@@ -245,11 +245,11 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
   }
-  [data-theme="s3ream"] .nav-glass {
+  [data-theme="hulesa"] .nav-glass {
     background-color: rgba(244, 244, 245, 0.7);
     border-bottom: 1px solid rgba(255, 255, 255, 0.5);
   }
-  [data-theme="s3reamdark"] .nav-glass {
+  [data-theme="hulesadark"] .nav-glass {
     background-color: rgba(8, 8, 10, 0.7);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
@@ -383,12 +383,12 @@
     opacity: 1;
     transform: none;
   }
-  [data-theme="s3ream"] .demo-filecard {
+  [data-theme="hulesa"] .demo-filecard {
     background-color: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 2px 8px rgba(16, 18, 27, 0.06);
   }
-  [data-theme="s3reamdark"] .demo-filecard {
+  [data-theme="hulesadark"] .demo-filecard {
     background-color: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }

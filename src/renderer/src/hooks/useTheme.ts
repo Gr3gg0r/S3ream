@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 export type ThemePreference = "system" | "light" | "dark";
 
-const STORAGE_KEY = "s3ream-theme";
-const DARK_THEME = "s3reamdark";
-const LIGHT_THEME = "s3ream";
+const STORAGE_KEY = "hulesa-theme";
+const DARK_THEME = "hulesadark";
+const LIGHT_THEME = "hulesa";
 
 const readStoredPreference = (): ThemePreference => {
   const stored = window.localStorage.getItem(STORAGE_KEY);

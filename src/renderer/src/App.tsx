@@ -45,7 +45,7 @@ const formatDuration = (milliseconds: number) => {
 type Mode = "single" | "batch";
 type View = "simple" | "advanced" | "history";
 
-const VIEW_STORAGE_KEY = "s3ream-view";
+const VIEW_STORAGE_KEY = "hulesa-view";
 
 const readStoredView = (): View => {
   const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
@@ -849,7 +849,7 @@ function App() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">S3ream</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">hulesa</h1>
               <p className="text-[13px] text-base-content/55">
                 Convert videos to multi-rendition HLS, upload to S3-compatible storage, and track
                 batch progress with live logs.
@@ -1932,7 +1932,7 @@ function App() {
                   </label>
                   <span className="linear-hint">
                     {s3PublicRead
-                      ? "S3ream applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
+                      ? "hulesa applies a public-read policy to the whole bucket so streams play without signed URLs. Don't point it at a bucket that holds private files."
                       : "Objects stay private — you'll need signed URLs or your own bucket policy to play the streams."}
                   </span>
                 </div>

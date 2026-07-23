@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanupBucket } from "./helpers";
 
 const endpoint = process.env.S3_TEST_ENDPOINT_URL ?? "http://localhost:9000";
-const bucket = `s3ream-itest-${Date.now()}`;
+const bucket = `hulesa-itest-${Date.now()}`;
 
 // Any HTTP response means the server is up; only a connection failure skips.
 const reachable = await fetch(endpoint)
@@ -48,12 +48,12 @@ describe.skipIf(!reachable)("RustFS round trip", () => {
     const { buildPublicUrl, getMinioClient } = await import("../../src/main/services/minioClient");
     const client = getMinioClient();
     const key = "round-trip/hello.txt";
-    await client.putObject(bucket, key, "hello s3ream");
+    await client.putObject(bucket, key, "hello hulesa");
 
     const url = buildPublicUrl(key);
     expect(url).toBe(`${endpoint}/${bucket}/${key}`);
     const response = await fetch(url ?? "");
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe("hello s3ream");
+    expect(await response.text()).toBe("hello hulesa");
   });
 });

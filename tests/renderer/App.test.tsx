@@ -115,7 +115,7 @@ afterEach(() => {
 describe("App shell", () => {
   it("renders the header and view switcher", () => {
     render(<App />);
-    expect(screen.getByRole("heading", { name: "S3ream" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "hulesa" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Simple" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Advanced" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "History" })).toBeInTheDocument();
@@ -155,8 +155,8 @@ describe("Theme toggle", () => {
   it("clicking Dark applies the dark theme and persists the preference", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
-    expect(document.documentElement.getAttribute("data-theme")).toBe("s3reamdark");
-    expect(window.localStorage.getItem("s3ream-theme")).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("hulesadark");
+    expect(window.localStorage.getItem("hulesa-theme")).toBe("dark");
   });
 });
 

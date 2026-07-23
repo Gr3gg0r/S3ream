@@ -27,7 +27,7 @@ const sweepStaleTempDirs = async () => {
     const entries = await fs.readdir(tmpdir(), { withFileTypes: true });
     await Promise.all(
       entries
-        .filter((entry) => entry.isDirectory() && entry.name.startsWith("s3ream-hls-"))
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith("hulesa-hls-"))
         .map((entry) => fs.rm(path.join(tmpdir(), entry.name), { recursive: true, force: true })),
     );
   } catch (error) {

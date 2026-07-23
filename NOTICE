@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-S3ream's own source code is licensed under the [MIT License](LICENSE).
+hulesa's own source code is licensed under the [MIT License](LICENSE).
 It builds on, and its packaged releases bundle, the following third-party
 components, which remain the property of their respective owners and are
 governed by their own licenses.
@@ -10,8 +10,8 @@ governed by their own licenses.
 Packaged builds bundle FFmpeg and FFprobe binaries fetched at install time by
 `@ffmpeg-installer/ffmpeg` and `@ffprobe-installer/ffprobe`. Those binaries are
 licensed under the **GNU General Public License v3.0** (they are built with GPL
-components such as libx264). When you redistribute a packaged S3ream build, the
-FFmpeg/FFprobe binaries inside it remain governed by GPL-3.0; S3ream's own code
+components such as libx264). When you redistribute a packaged hulesa build, the
+FFmpeg/FFprobe binaries inside it remain governed by GPL-3.0; hulesa's own code
 stays MIT. FFmpeg source code and license texts are available at
 <https://ffmpeg.org> and <https://ffmpeg.org/legal.html>.
 
